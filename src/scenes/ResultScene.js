@@ -13,8 +13,9 @@ export default class ResultScene extends Scene {
   }
 
   render(container) {
-    var w = this.stage.width;
-    var h = this.stage.height;
+    var sysInfo = wx.getSystemInfoSync();
+    var w = sysInfo.windowWidth;
+    var h = sysInfo.windowHeight;
     this.container.removeChildren();
 
     // 遮罩
@@ -77,6 +78,8 @@ export default class ResultScene extends Scene {
     );
     this.container.addChild(menuBtn.getDisplayObject());
     this.registerHitArea(menuBtn.getHitArea(), menuBtn.onClick, 10);
+
+    container.addChild(this.container);
   }
 
   onExit() { this.stage.removeChild(this.container); }

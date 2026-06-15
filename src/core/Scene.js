@@ -13,4 +13,10 @@ export default class Scene {
   onExit() {}
 
   handleTouch(pos, type) {}
+
+  registerHitArea(rect, callback, layer) {
+    if (this._eventManager) {
+      this._eventManager.registerHitArea(rect, callback, layer);
+    }
+  }
 }

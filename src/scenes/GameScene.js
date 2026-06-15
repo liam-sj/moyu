@@ -5,6 +5,7 @@ import Board from '../game/Board';
 import SlotBar from '../game/SlotBar';
 import StepManager from '../game/StepManager';
 import SkillSystem from '../game/SkillSystem';
+import { getLevelConfig } from '../data/levels';
 import { log } from '../utils/Logger';
 
 var TAG = 'GameScene';
@@ -27,15 +28,18 @@ export default class GameScene extends Scene {
     this.happyValue = 0;
     this.eliminateGroupCount = 0;
     this.pendingSkills = null;
-    this.skillButtons = [];
     this.consecutiveNegative = 0;
     this._happyMultiplier = null;
     this._happyMultiplierSteps = 0;
 
-    var screenW = this.stage.width;
-    var screenH = this.stage.height;
-    this.board.calcLayout(screenW, screenH, 5, 5);
+    var sysInfo = wx.getSystemInfoSync();
+    var screenW = sysInfo.windowWidth;
+    var screenH = sysInfo.windowHeight;
+    var config = getLevelConfig(this.levelId);
+    this.board.calcLayout(screenW, screenH, config.gridRows, config.gridCols);
     this.slotBar.calcLayout(screenW, screenH);
+    this.screenW = screenW;
+    this.screenH = screenH;
 
     this._initGame();
     log(TAG, 'GameScene entered, level=' + this.levelId);
@@ -49,60 +53,79 @@ export default class GameScene extends Scene {
     this.stepManager.init(this.board.levelConfig);
     this.skillSystem.init();
     this._renderHUD();
-    this._bindCardClicks();
   }
 
-  _bindCardClicks() {
+  update(dt) {
+    // 每帧注册卡片点击区域（EventManager 在 update 之前已 clearHitAreas）
+    if (!this.pendingSkills) {
+      this._registerCardHitAreas();
+    }
+    // 技能弹窗的点击区域（仅弹窗显示时注册）
+    if (this.pendingSkills) {
+      this._registerSkillHitAreas();
+    }
+  }
+
+  /**
+   * 用 EventManager 注册卡片点击区域（代替 PIXI pointertap）
+   */
+  _registerCardHitAreas() {
     var clickable = this.board.getClickableCards();
     var self = this;
+    var bw = this.board.cardWidth;
+    var bh = this.board.cardHeight;
+
     for (var i = 0; i < clickable.length; i++) {
       (function (card) {
         if (!card.container) return;
-        card.container.interactive = true;
-        card.container.buttonMode = true;
-        card.container.off('pointertap');
-        card.container.on('pointertap', function () { self._onCardClicked(card); });
+        var cx = card.container.x;
+        var cy = card.container.y;
+
+        self.registerHitArea(
+          { x: cx, y: cy, w: bw, h: bh },
+          function () { self._onCardClicked(card); },
+          5
+        );
       })(clickable[i]);
+    }
+  }
+
+  /**
+   * 注册技能弹窗点击区域
+   */
+  _registerSkillHitAreas() {
+    if (!this._skillHitAreas) return;
+    var self = this;
+    for (var i = 0; i < this._skillHitAreas.length; i++) {
+      (function (item) {
+        self.registerHitArea(item.rect, item.callback, 20);
+      })(this._skillHitAreas[i]);
     }
   }
 
   _onCardClicked(card) {
     if (this.pendingSkills) return;
 
-    // 1. 消耗步数
     if (!this.stepManager.useStep()) { this._endGame(false, '步数耗尽！'); return; }
 
-    // 2. 事件卡揭示
     if (card.type === 'event' && !card.isRevealed) this._revealEventCard(card);
 
-    // 3. 飞入槽位
     if (this.stepManager.occupiesSlot()) {
       if (!this.slotBar.addCard(card)) { this._checkFailure(); return; }
     } else {
       this.slotBar.addCard(card);
     }
 
-    // 4. 从棋盘移除
     this.board.removeCard(card);
-
-    // 5. 更新效果
     this.stepManager.tick();
 
-    // 6. 重新绑定点击
-    this._bindCardClicks();
-
-    // 7. 检查胜利
     if (!this.board.hasCards()) { this._endGame(true, '棋盘清空！'); return; }
 
-    // 8. 检查失败
     this._checkFailure();
-
-    // 9. 刷新HUD
     this._renderHUD();
   }
 
   _revealEventCard(card) {
-    // 保底机制：连续3次负面后第4次必正面
     if (this.consecutiveNegative >= 3) {
       var positiveCards = ['paid_leave', 'colleague_coffee', 'early_leave', 'boss_favor', 'reimburse'];
       var pick = positiveCards[Math.floor(Math.random() * positiveCards.length)];
@@ -117,7 +140,6 @@ export default class GameScene extends Scene {
     if (card.config.type === 'negative') this.consecutiveNegative++;
     else this.consecutiveNegative = 0;
     this.board._renderAll();
-    this._bindCardClicks();
     this.slotBar._drawAll();
   }
 
@@ -158,16 +180,15 @@ export default class GameScene extends Scene {
 
   showSkillSelection(skills) {
     this.pendingSkills = skills;
-    this.skillButtons = [];
+    this._skillHitAreas = [];
     this._renderSkillPopup(skills);
   }
 
   _renderSkillPopup(skills) {
-    var w = this.stage.width, h = this.stage.height;
+    var w = this.screenW, h = this.screenH;
 
     var overlay = new PIXI.Graphics();
     overlay.beginFill(0x000000, 0.6); overlay.drawRect(0, 0, w, h); overlay.endFill();
-    overlay.interactive = true;
     this.container.addChild(overlay);
     this._skillOverlay = overlay;
 
@@ -188,7 +209,6 @@ export default class GameScene extends Scene {
 
         var bg = new PIXI.Graphics();
         bg.beginFill(0x34495E); bg.drawRoundedRect(30, y, btnW, btnH, 8); bg.endFill();
-        bg.interactive = true; bg.buttonMode = true;
         sc.addChild(bg);
 
         var iconTxt = new PIXI.Text(skill.icon, { fontFamily: 'sans-serif', fontSize: 28, align: 'center' });
@@ -213,9 +233,15 @@ export default class GameScene extends Scene {
         tagTxt.anchor.set(1, 0.5); tagTxt.x = 30 + btnW - 15; tagTxt.y = y + btnH / 2;
         sc.addChild(tagTxt);
 
-        bg.on('pointertap', function () { self._onSkillSelected(skill); });
         self.container.addChild(sc);
-        self.skillButtons.push(sc);
+        self._skillContainers = self._skillContainers || [];
+        self._skillContainers.push(sc);
+
+        // 注册 hit area（在 _registerSkillHitAreas 中生效）
+        self._skillHitAreas.push({
+          rect: { x: 30, y: y, w: btnW, h: btnH },
+          callback: function () { self._onSkillSelected(skill); }
+        });
       })(skills[i], i);
     }
   }
@@ -223,8 +249,11 @@ export default class GameScene extends Scene {
   _onSkillSelected(skill) {
     if (this._skillOverlay) { this.container.removeChild(this._skillOverlay); this._skillOverlay = null; }
     if (this._skillPopupTitle) { this.container.removeChild(this._skillPopupTitle); this._skillPopupTitle = null; }
-    for (var i = 0; i < this.skillButtons.length; i++) this.container.removeChild(this.skillButtons[i]);
-    this.skillButtons = [];
+    if (this._skillContainers) {
+      for (var i = 0; i < this._skillContainers.length; i++) this.container.removeChild(this._skillContainers[i]);
+      this._skillContainers = [];
+    }
+    this._skillHitAreas = null;
     this.pendingSkills = null;
     this.skillSystem.selectSkill(skill);
     this._renderHUD();
@@ -317,7 +346,7 @@ export default class GameScene extends Scene {
     if (this._hudContainer) this.container.removeChild(this._hudContainer);
     this._hudContainer = new PIXI.Container();
     this.container.addChild(this._hudContainer);
-    var screenW = this.stage.width;
+    var screenW = this.screenW;
 
     var levelName = this.board.levelConfig ? this.board.levelConfig.name : '';
     var levelText = new PIXI.Text(levelName, { fontFamily: 'sans-serif', fontSize: 14, fill: '#BDC3C7' });
@@ -345,7 +374,6 @@ export default class GameScene extends Scene {
     this._hudContainer.addChild(slotText);
   }
 
-  update(dt) {}
   render(container) { container.addChild(this.container); }
   onExit() { this.stage.removeChild(this.container); }
 }

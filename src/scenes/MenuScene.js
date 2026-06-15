@@ -12,8 +12,9 @@ export default class MenuScene extends Scene {
   }
 
   render(container) {
-    var w = this.stage.width;
-    var h = this.stage.height;
+    var sysInfo = wx.getSystemInfoSync();
+    var w = sysInfo.windowWidth;
+    var h = sysInfo.windowHeight;
     this.container.removeChildren();
 
     // 标题
@@ -56,6 +57,8 @@ export default class MenuScene extends Scene {
     });
     tip.anchor.set(0.5); tip.x = w / 2; tip.y = h * 0.85;
     this.container.addChild(tip);
+
+    container.addChild(this.container);
   }
 
   onExit() { this.stage.removeChild(this.container); }

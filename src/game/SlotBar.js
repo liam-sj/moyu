@@ -113,6 +113,7 @@ export default class SlotBar {
       var x = this.startX + i * (this.slotWidth + this.gap);
       var y = this.startY;
       var slotBg = new PIXI.Graphics();
+      // 先画背景，确保它在文字下面
       if (this.slots[i]) {
         var card = this.slots[i];
         slotBg.beginFill(0xFFFFFF);
@@ -120,6 +121,8 @@ export default class SlotBar {
         slotBg.endFill();
         slotBg.lineStyle(1.5, card.getColor(), 0.8);
         slotBg.drawRoundedRect(x, y, this.slotWidth, this.slotHeight, 4);
+        this.container.addChild(slotBg);
+        // 文字在上层
         var icon = card.icon;
         if (card.type === 'event' && !card.isRevealed) icon = '❓';
         var iconText = new PIXI.Text(icon, { fontFamily: 'sans-serif', fontSize: 22, align: 'center' });
@@ -131,8 +134,8 @@ export default class SlotBar {
       } else {
         slotBg.lineStyle(1, 0xBDC3C7, 0.5);
         slotBg.drawRoundedRect(x, y, this.slotWidth, this.slotHeight, 4);
+        this.container.addChild(slotBg);
       }
-      this.container.addChild(slotBg);
     }
   }
 }

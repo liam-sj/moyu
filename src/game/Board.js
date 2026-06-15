@@ -296,7 +296,7 @@ export default class Board {
 
     card.container = container;
     this.container.addChild(container);
-    if (!card.isCovered) { container.interactive = true; container.buttonMode = true; }
+    // 点击由 EventManager hit area 处理，不依赖 PIXI 事件系统
   }
 
   getCardScreenPos(card) {
