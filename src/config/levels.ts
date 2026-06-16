@@ -1,7 +1,6 @@
-// src/data/levels.js
+import type { LevelConfig } from '../core/types'
 
-export var LEVELS = {
-  // 第一关：教学关，简单
+export const LEVELS: Record<string, LevelConfig> = {
   level1: {
     id: 'level1',
     name: '第一关',
@@ -15,8 +14,6 @@ export var LEVELS = {
     steps: 30,
     slotLimit: 7,
   },
-
-  // 第二关：挑战关
   level2: {
     id: 'level2',
     name: '第二关',
@@ -31,11 +28,8 @@ export var LEVELS = {
     steps: 35,
     slotLimit: 7,
   },
-};
+}
 
-/**
- * 获取关卡配置
- */
-export function getLevelConfig(levelId) {
-  return LEVELS[levelId] || LEVELS.level1;
+export function getLevelConfig(levelId: string): LevelConfig {
+  return LEVELS[levelId] || LEVELS.level1
 }
