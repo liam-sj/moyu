@@ -11,5 +11,4 @@ manager.push(new MenuScene())
 app.ticker.add(() => {
   manager.eventManager.clearHitAreas()
   manager.update(app.ticker.deltaMS / (1000 / 60))
-  app.renderer.render(app.stage)
 })

@@ -35,7 +35,6 @@ const manager = new SceneManager(app.stage)
 app.ticker.add(() => {
   manager.eventManager.clearHitAreas()
   manager.update(app.ticker.deltaMS / (1000 / 60))
-  app.renderer.render(app.stage)
 })
 
 // 启动
