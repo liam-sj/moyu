@@ -1,0 +1,19 @@
+{
+  "name": "moyu-master",
+  "version": "2.0.0",
+  "description": "摸鱼大师 - 微信小游戏（PixiJS v7 + TypeScript 栈式架构）",
+  "type": "module",
+  "scripts": {
+    "dev": "esbuild src/main.ts --bundle --outfile=dist/bundle.js --sourcemap --watch --servedir=.",
+    "build": "esbuild src/main.minigame.ts --bundle --format=iife --outfile=game.js --platform=browser --global-name=game",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pixi.js-legacy": "^7.4.2"
+  },
+  "devDependencies": {
+    "@types/wechat-miniprogram": "^3.4.10",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.7.0"
+  }
+}
