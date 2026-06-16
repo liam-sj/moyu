@@ -1,4 +1,4 @@
-import type { NormalCardConfig, FuncCardConfig, CardData, BoardCard } from './types'
+import type { NormalCardConfig, FuncCardConfig, CardData, BoardCard, SlotCard } from './types'
 
 let uidSeq = 0
 
@@ -50,7 +50,7 @@ export function revealCard(card: CardData): void {
   if (config.revealName) card.name = config.revealName
 }
 
-export function getCardColor(card: CardData | BoardCard): string {
+export function getCardColor(card: CardData | BoardCard | SlotCard): string {
   const config = card.config
   if (card.type === 'event' && !card.isRevealed) return '#9B59B6'
   if (card.type === 'event' && card.isRevealed) {

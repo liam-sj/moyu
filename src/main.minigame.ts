@@ -3,24 +3,22 @@ import { installPolyfills, getMainCanvas } from './platform/PixiAdapter'
 installPolyfills()
 
 import * as PIXI from 'pixi.js-legacy'
-import './libs/pixi-unsafe-eval-v7'
 
-// 安全 eval 补丁
+// 安全 eval 补丁 — pixi.js-legacy v7 在某些微信小游戏环境下需要
 PIXI.settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = false
-;(function () {
-  function _noop() {}
-  try {
-    if ((PIXI as any).Renderer?.prototype) {
-      (PIXI as any).Renderer.prototype._unsafeEvalCheck = _noop
-    }
-    if ((PIXI as any).CanvasRenderer?.prototype) {
-      (PIXI as any).CanvasRenderer.prototype._unsafeEvalCheck = _noop
-    }
-  } catch (e) {}
-  try {
-    ;(PIXI as any).unsafeEvalSupported = function () { return true }
-  } catch (e) {}
-})()
+try {
+  if ((PIXI as any).Renderer?.prototype) {
+    (PIXI as any).Renderer.prototype._unsafeEvalCheck = function _noop() {}
+  }
+  if ((PIXI as any).CanvasRenderer?.prototype) {
+    (PIXI as any).CanvasRenderer.prototype._unsafeEvalCheck = function _noop() {}
+  }
+} catch (e) {}
+try {
+  // 通过中间变量绕过 esbuild import 不可变检查
+  var _PIXI = PIXI as any
+  _PIXI.unsafeEvalSupported = function () { return true }
+} catch (e) {}
 
 import { createApp } from './bootstrap'
 import { SceneManager } from './engine/SceneManager'
