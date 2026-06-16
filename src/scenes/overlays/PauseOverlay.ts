@@ -3,6 +3,9 @@ import { Scene } from '../../engine/Scene'
 import { Button } from '../../views/Button'
 
 export class PauseOverlay extends Scene {
+  private _resumeHitArea: { x: number; y: number; w: number; h: number } | null = null
+  private _resumeCallback: (() => void) | null = null
+
   onEnter(): void {
     const sysInfo = wx.getSystemInfoSync()
     const w = sysInfo.windowWidth
@@ -29,8 +32,16 @@ export class PauseOverlay extends Scene {
       { bgColor: '#27AE60', fontSize: 22, radius: 8, shadow: true }
     )
     this.container.addChild(resumeBtn.container)
-    this.registerHitArea(resumeBtn.hitArea, () => {
+    this._resumeHitArea = resumeBtn.hitArea
+    this._resumeCallback = () => {
       this.manager.pop()
-    }, 20)
+    }
+  }
+
+  /** 每帧重注册命中区域 */
+  onUpdate(_dt: number): void {
+    if (this._resumeHitArea && this._resumeCallback) {
+      this.registerHitArea(this._resumeHitArea, this._resumeCallback, 20)
+    }
   }
 }

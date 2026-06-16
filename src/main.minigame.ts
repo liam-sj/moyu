@@ -3,8 +3,10 @@ import { installPolyfills, getMainCanvas } from './platform/PixiAdapter'
 installPolyfills()
 
 import * as PIXI from 'pixi.js-legacy'
+// ★ 必须加载 unsafe-eval 补丁，替换 ShaderSystem.syncUniforms（微信禁用 new Function）
+import '../libs/pixi-unsafe-eval-v7'
 
-// 安全 eval 补丁 — pixi.js-legacy v7 在某些微信小游戏环境下需要
+// 安全 eval 补丁
 PIXI.settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = false
 try {
   if ((PIXI as any).Renderer?.prototype) {
@@ -15,7 +17,6 @@ try {
   }
 } catch (e) {}
 try {
-  // 通过中间变量绕过 esbuild import 不可变检查
   var _PIXI = PIXI as any
   _PIXI.unsafeEvalSupported = function () { return true }
 } catch (e) {}

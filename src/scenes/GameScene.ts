@@ -34,6 +34,10 @@ export class GameScene extends Scene {
   private screenW = 0
   private screenH = 0
 
+  // Pause button hit area (re-registered every frame)
+  private _pauseHitArea: { x: number; y: number; w: number; h: number } | null = null
+  private _pauseCallback: (() => void) | null = null
+
   // Skill popup state
   private pendingSkills: SkillConfig[] | null = null
   private skillHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; callback: () => void }> = []
@@ -56,10 +60,11 @@ export class GameScene extends Scene {
       bgColor: '#7F8C8D', fontSize: 16, radius: 6,
     })
     this.container.addChild(pauseBtn.container)
-    this.registerHitArea(pauseBtn.hitArea, () => {
+    this._pauseHitArea = pauseBtn.hitArea
+    this._pauseCallback = () => {
       const { PauseOverlay } = require('./overlays/PauseOverlay')
       this.manager.push(new PauseOverlay())
-    }, 15)
+    }
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
@@ -79,6 +84,11 @@ export class GameScene extends Scene {
   }
 
   onUpdate(_dt: number): void {
+    // Re-register pause button every frame
+    if (this._pauseHitArea && this._pauseCallback) {
+      this.registerHitArea(this._pauseHitArea, this._pauseCallback, 15)
+    }
+
     if (!this.pendingSkills) {
       this.registerCardHitAreas()
     } else {
