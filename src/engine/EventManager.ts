@@ -22,9 +22,16 @@ export class EventManager {
   }
 
   stop(): void {
-    wx.offTouchStart(this._boundOnTouch)
+    if (typeof wx !== 'undefined') {
+      wx.offTouchStart(this._boundOnTouch)
+    }
   }
 
+  /**
+   * 注册触摸命中区域。
+   * 注意：hit area 会在每帧开始前由主循环通过 clearHitAreas() 统一清空，
+   * 因此每个场景（或帧）都需要重新注册自己的区域。这是继承自原始 JS 代码的设计模式。
+   */
   registerHitArea(rect: { x: number; y: number; w: number; h: number }, callback: () => void, layer = 0): void {
     this._hitAreas.push({
       x: rect.x,
@@ -36,8 +43,19 @@ export class EventManager {
     })
   }
 
+  /** 每帧开始前由主循环清空 — hit area 的生命周期仅限当前帧，场景切换时无需额外清理 */
   clearHitAreas(): void {
     this._hitAreas.length = 0
+  }
+
+  /**
+   * 按回调函数取消注册某个 hit area。
+   * 安全用途：scene._teardown 时可通过此方法清理本 scene 注册的 hit area，
+   * 但注意 Scene 基类使用了匿名回调，因此不会直接调用；
+   * hit area 的清除依赖每帧开始前主循环调用的 clearHitAreas()。
+   */
+  unregisterByCallback(callback: () => void): void {
+    this._hitAreas = this._hitAreas.filter(a => a.callback !== callback)
   }
 
   private _onTouch(e: any): void {

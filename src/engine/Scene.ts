@@ -29,7 +29,9 @@ export abstract class Scene {
     this.eventManager.registerHitArea(rect, callback, layer)
   }
 
-  /** 框架内部：销毁时统一清理 */
+  /** 框架内部：销毁时统一清理。
+   *  注意：hit area 由主循环每帧开始前通过 eventManager.clearHitAreas() 自动清空，
+   *  因此 _teardown 中无需额外清理 hit area，这是继承自原始 JS 代码的设计模式。 */
   _teardown(): void {
     for (const off of this.disposers) {
       try { off() } catch (e) { /* ignore */ }
