@@ -49,15 +49,62 @@ export class Board {
       }
     }
 
-    const cardList = this._buildCardList(config)
+    // Calculate exact number of cards to place (3n), then generate exactly that many
+    const totalNeeded = this._calcTotalNeeded(layers, rows, cols)
+    const cardList = this._buildCardList(config, totalNeeded)
     this._fillGrid(cardList, layers, rows, cols)
     this._updateCoveredState()
     this._emitBoardInit()
   }
 
-  private _buildCardList(config: LevelConfig): Array<{ type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig }> {
+  /** Sum layer coverage slots, rounded down to 3n per layer and total */
+  private _calcTotalNeeded(layers: number, rows: number, cols: number): number {
+    let total = 0
+    for (let l = 0; l < layers; l++) {
+      let coverage: number
+      if (layers === 1) coverage = 0.95
+      else if (l === 0) coverage = 0.85
+      else if (l === layers - 1) coverage = 0.35
+      else coverage = 0.5
+      const raw = Math.floor(rows * cols * coverage)
+      total += raw - (raw % 3)
+    }
+    // Ensure grand total is 3n
+    return total - (total % 3)
+  }
+
+  private _buildCardList(config: LevelConfig, totalNeeded: number): Array<{ type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig }> {
     const list: Array<{ type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig }> = []
-    const normalCount = config.totalCards - config.funcCardCount
+
+    // Calculate func card count proportional to config, but scaled to totalNeeded
+    const funcRatio = config.funcRatio || { negative: 1, positive: 0, dual: 0 }
+    const ratioSum = (funcRatio.negative || 1) + (funcRatio.positive || 0) + (funcRatio.dual || 0)
+    const funcFraction = config.totalCards > 0 ? config.funcCardCount / config.totalCards : 0
+    let totalFunc = Math.floor(totalNeeded * funcFraction)
+    totalFunc = totalFunc - (totalFunc % 3) // 3n
+    // Ensure minimum 3 func cards if the level config has any func cards
+    if (totalFunc === 0 && config.funcCardCount > 0 && totalNeeded >= 3) {
+      totalFunc = 3
+    }
+
+    let negCount = Math.floor(totalFunc * (funcRatio.negative || 1) / ratioSum)
+    let posCount = Math.floor(totalFunc * (funcRatio.positive || 0) / ratioSum)
+    let dualCount = totalFunc - negCount - posCount
+    // Ensure each func category is a multiple of 3 for guaranteed elimination
+    negCount = negCount - (negCount % 3)
+    posCount = posCount - (posCount % 3)
+    dualCount = dualCount - (dualCount % 3)
+    // Recalculate total func after rounding
+    totalFunc = negCount + posCount + dualCount
+    // Safeguard: func cards cannot exceed total slots
+    if (totalFunc > totalNeeded) {
+      totalFunc = totalNeeded - (totalNeeded % 3)
+      negCount = Math.min(negCount, totalFunc)
+      posCount = 0
+      dualCount = 0
+    }
+
+    const normalCount = totalNeeded - totalFunc
 
     const usedNormalTypes = NORMAL_CARDS.slice(0, config.normalCardTypes)
     let perType = Math.floor(normalCount / config.normalCardTypes)
@@ -67,17 +114,12 @@ export class Board {
         list.push({ type: 'normal', config: ct })
       }
     }
-    // fill remainder
+    // fill remainder — ensure multiple of 3 so every card can be eliminated
     const remain = normalCount - list.filter(l => l.type === 'normal').length
-    for (let k = 0; k < remain; k++) {
+    const adjustedRemain = remain - (remain % 3)
+    for (let k = 0; k < adjustedRemain; k++) {
       list.push({ type: 'normal', config: usedNormalTypes[0] })
     }
-
-    const funcRatio = config.funcRatio || { negative: 1, positive: 0, dual: 0 }
-    const ratioSum = (funcRatio.negative || 1) + (funcRatio.positive || 0) + (funcRatio.dual || 0)
-    const negCount = Math.floor(config.funcCardCount * (funcRatio.negative || 1) / ratioSum)
-    const posCount = Math.floor(config.funcCardCount * (funcRatio.positive || 0) / ratioSum)
-    const dualCount = config.funcCardCount - negCount - posCount
 
     this._addFuncCards(list, FUNC_TYPE.NEGATIVE, negCount)
     this._addFuncCards(list, FUNC_TYPE.POSITIVE, posCount)
@@ -90,9 +132,12 @@ export class Board {
     list: Array<{ type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig }>,
     funcType: string, count: number
   ): void {
+    if (count <= 0) return
     const pool = FUNC_CARDS.filter(c => (c as FuncCardConfig).type === funcType)
+    if (pool.length === 0) return
+    // Pick one func card type and add in multiples of 3 for guaranteed elimination
+    const pick = pool[Math.floor(Math.random() * pool.length)]
     for (let i = 0; i < count; i++) {
-      const pick = pool[Math.floor(Math.random() * pool.length)]
       list.push({ type: 'event', config: pick as FuncCardConfig })
     }
   }
@@ -119,11 +164,12 @@ export class Board {
     for (let l = 0; l < layers; l++) {
       let coverage: number
       if (layers === 1) coverage = 0.95
-      else if (l === 0) coverage = 0.9
-      else if (l === layers - 1) coverage = 0.3
+      else if (l === 0) coverage = 0.85
+      else if (l === layers - 1) coverage = 0.35
       else coverage = 0.5
 
-      const needed = Math.floor(rows * cols * coverage)
+      const rawNeeded = Math.floor(rows * cols * coverage)
+      const needed = rawNeeded - (rawNeeded % 3) // ensure 3n for guaranteed elimination
       let placed = 0
       for (let r = 0; r < rows && placed < needed; r++) {
         for (let c = 0; c < cols && placed < needed; c++) {

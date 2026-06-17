@@ -217,6 +217,12 @@ export class GameScene extends Scene {
         h: board.cardHeight,
       }, () => {
         this.logic.onCardClicked(card.uid)
+        // Remove card view from board when moved to slot
+        const cardView = this.cardViews.get(card.uid)
+        if (cardView) {
+          cardView.destroy()
+          this.cardViews.delete(card.uid)
+        }
         this.renderSlotBar()
         this.renderHUD()
       }, 5)

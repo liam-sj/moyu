@@ -5,7 +5,7 @@ export const LEVELS: Record<string, LevelConfig> = {
     id: 'level1',
     name: '第一关',
     normalCardTypes: 4,
-    funcCardCount: 2,
+    funcCardCount: 3,
     funcTypes: ['negative'],
     layers: 2,
     gridRows: 4,
