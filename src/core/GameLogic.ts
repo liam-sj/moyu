@@ -1,5 +1,5 @@
 import type { EventBus } from '../engine/EventBus'
-import type { LevelConfig, GameOverEvent, GameResult, NormalCardConfig, FuncCardConfig } from './types'
+import type { LevelConfig, GameOverEvent, GameResult, NormalCardConfig, FuncCardConfig, BoardCard } from './types'
 import { Board } from './Board'
 import { SlotBar } from './SlotBar'
 import { StepManager } from './StepManager'
@@ -23,6 +23,8 @@ export class GameLogic {
   private over = false
   private _happyMultiplier: number | null = null
   private _happyMultiplierSteps = 0
+  /** Undo: last card moved from board to slot */
+  private _lastAction: { card: BoardCard } | null = null
 
   constructor(levelConfig: LevelConfig, bus: EventBus) {
     this.levelConfig = levelConfig
@@ -42,7 +44,7 @@ export class GameLogic {
     this._happyMultiplierSteps = 0
 
     const config = this.levelConfig
-    this.board.calcLayout(screenW, screenH, config.gridRows, config.gridCols)
+    this.board.calcLayout(screenW, screenH, config.gridRows, config.gridCols, config.layers, config.gapRatio || 0)
     this.slotBar.calcLayout(screenW, screenH)
     this.board.generate(config)
     this.slotBar.reset(config.slotLimit)
@@ -56,6 +58,9 @@ export class GameLogic {
     const card = this.board.removeCard(cardUid)
     if (!card) return
 
+    // Save for undo
+    this._lastAction = { card: { ...card } }
+
     if (!this.stepManager.useStep()) {
       this._endGame(false, '步数耗尽！')
       return
@@ -66,7 +71,11 @@ export class GameLogic {
       this._revealEventCard(card)
     }
 
-    if (this.stepManager.occupiesSlot()) {
+    // Flight mode: card goes to special flight slots above the bar
+    if (this.stepManager.slotFreeClicks > 0) {
+      this.stepManager.slotFreeClicks--
+      this.slotBar.addToFlightSlot(card)
+    } else if (this.stepManager.occupiesSlot()) {
       if (!this.slotBar.addCard(card)) {
         this._checkFailure()
         return
@@ -80,6 +89,11 @@ export class GameLogic {
     if (!this.board.hasCards()) {
       this._endGame(true, '棋盘清空！')
       return
+    }
+
+    // Deadlock guard: if all remaining cards are covered, force-uncover them
+    if (this.board.getClickableCards().length === 0) {
+      this.board.forceUncoverAll()
     }
 
     this._checkFailure()
@@ -139,6 +153,58 @@ export class GameLogic {
     this.eliminateGroupCount++
   }
 
+  private _handleSelectAndClear(): void {
+    const types = this.board.getCardTypesOnBoard()
+    if (types.length === 0) return
+    // Emit event so GameScene shows card-type selection UI
+    this.bus.emit('selectCardType', { cardTypes: types })
+  }
+
+  /** Undo last card click: put card back on board, restore step */
+  undoLastAction(): boolean {
+    if (!this._lastAction) return false
+    const a = this._lastAction
+    this._lastAction = null
+
+    const uid = a.card.uid
+    // Find card in slot and remove it
+    let removed = false
+    for (let i = 0; i < this.slotBar.maxSlots; i++) {
+      if (this.slotBar.slots[i] && this.slotBar.slots[i]!.uid === uid) {
+        this.slotBar.slots[i] = null
+        removed = true
+        break
+      }
+    }
+    if (!removed) {
+      for (let i = 0; i < 3; i++) {
+        if (this.slotBar.flightSlots[i] && this.slotBar.flightSlots[i]!.uid === uid) {
+          this.slotBar.flightSlots[i] = null
+          this.slotBar.flightSlotsUsed--
+          removed = true
+          break
+        }
+      }
+    }
+    if (!removed) return false
+
+    this.board.restoreCard(a.card)
+    this.stepManager.stepsRemaining++
+    this.bus.emit('slotChanged', {})
+    return true
+  }
+
+  /** Revive after failure: eject 3 cards, reset game-over flag */
+  revive(): void {
+    this.over = false
+    this.slotBar.ejectFirstThree()
+  }
+
+  /** Eject first 3 cards from slot bar to holding area above */
+  ejectSlots(): void {
+    this.slotBar.ejectFirstThree()
+  }
+
   getSkillContext(): any {
     const self = this
     return {
@@ -166,7 +232,37 @@ export class GameLogic {
       set stepsUnlimited(v: boolean) { self.stepManager.stepsUnlimited = v },
       get slotUnlimited() { return self.stepManager.slotUnlimited },
       set slotUnlimited(v: boolean) { self.stepManager.slotUnlimited = v },
-      selectAndClear: false,
+      get selectAndClear() { return false },
+      set selectAndClear(v: boolean) {
+        if (v) self._handleSelectAndClear()
+      },
+      get selectAndClearTarget() { return null },
+      set selectAndClearTarget(cardId: string | null) {
+        if (cardId) {
+          // Remove from board
+          self.board.removeAllOfType(cardId)
+          // Remove from normal slots
+          for (let i = 0; i < self.slotBar.maxSlots; i++) {
+            if (self.slotBar.slots[i] && self.slotBar.slots[i]!.cardId === cardId) {
+              self.slotBar.slots[i] = null
+            }
+          }
+          // Remove from flight slots
+          for (let i = 0; i < 3; i++) {
+            if (self.slotBar.flightSlots[i] && self.slotBar.flightSlots[i]!.cardId === cardId) {
+              self.slotBar.flightSlots[i] = null
+              self.slotBar.flightSlotsUsed--
+            }
+          }
+          // Remove from holding slots
+          for (let i = 0; i < 3; i++) {
+            if (self.slotBar.holdingSlots[i] && self.slotBar.holdingSlots[i]!.cardId === cardId) {
+              self.slotBar.holdingSlots[i] = null
+            }
+          }
+          self.bus.emit('slotChanged', {})
+        }
+      },
       clearRandomRare: false,
       swapTwoInSlot: false,
       gainWildCard: false,

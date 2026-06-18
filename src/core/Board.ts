@@ -16,24 +16,50 @@ export class Board {
   layerOffsetX = 4
   layerOffsetY = 4
   gap = 8
+  /** Whether to offset odd layers by half card width (brick-wall stagger) */
+  staggerLayers = false
 
   constructor(bus: EventBus) {
     this.bus = bus
   }
 
-  calcLayout(screenW: number, screenH: number, rows: number, cols: number): void {
+  calcLayout(screenW: number, screenH: number, rows: number, cols: number, layers: number, gapRatio = 0): void {
     const areaTop = 20
-    const areaBottom = 180
+    const areaBottom = 200
     const areaH = screenH - areaTop - areaBottom
     const areaW = screenW - 20
-    const gap = 8
-    this.cardWidth = Math.floor((areaW - gap * (cols + 1)) / cols)
+
+    // Unified card sizing for both levels.
+    // Level 2 (6 cols + 4 layers × 0.50) is the constraining layout.
+    // We compute cardWidth from Level 2's effectiveCols, then Level 1 reuses it.
+    const layerOffsetRatio = gapRatio > 0 ? 0.50 : 0
+    const preGap = gapRatio > 0 ? 0 : 20
+    const effectiveCols = cols + (layers - 1) * layerOffsetRatio
+
+    if (gapRatio > 0) {
+      // Dense pyramid: cardWidth driven by effectiveCols to fill screen
+      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / effectiveCols)
+    } else {
+      // Simple layout: targeted card width for neat 3×3 grid (~50px)
+      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / (cols + 3))
+    }
     this.cardHeight = Math.floor(this.cardWidth * 1.25)
-    this.offsetX = Math.floor((screenW - (this.cardWidth * cols + gap * (cols - 1))) / 2)
-    this.offsetY = areaTop + Math.floor((areaH - (this.cardHeight * rows + gap * (rows - 1))) / 2)
-    this.gap = gap
-    this.layerOffsetX = Math.floor(this.cardWidth * 0.08)
-    this.layerOffsetY = Math.floor(this.cardHeight * 0.06)
+
+    this.layerOffsetX = gapRatio > 0 ? Math.floor(this.cardWidth * layerOffsetRatio) : 0
+    this.layerOffsetY = gapRatio > 0 ? Math.floor(this.cardHeight * 0.40) : 40
+    this.gap = gapRatio > 0 ? Math.floor(this.cardWidth * gapRatio) : 20
+    this.staggerLayers = gapRatio > 0
+
+    // Center the widest (top) layer's visual extent
+    const gridVisualWidth = this.cardWidth * cols + this.gap * (cols - 1)
+    const totalVisualWidth = gridVisualWidth + (layers - 1) * this.layerOffsetX
+    this.offsetX = Math.max(10, Math.floor((screenW - totalVisualWidth) / 2))
+
+    // Center grid vertically, then shift down to prevent top layer from going off-screen
+    const gridVisualHeight = this.cardHeight * rows + this.gap * (rows - 1)
+    const centeredOffsetY = areaTop + Math.floor((areaH - gridVisualHeight) / 2)
+    const minOffsetY = areaTop + (layers - 1) * this.layerOffsetY
+    this.offsetY = Math.max(centeredOffsetY, minOffsetY)
   }
 
   generate(config: LevelConfig): void {
@@ -49,10 +75,14 @@ export class Board {
       }
     }
 
-    // Calculate exact number of cards to place (3n), then generate exactly that many
-    const totalNeeded = this._calcTotalNeeded(layers, rows, cols)
+    // Use exact per-layer counts if specified, otherwise calculate from coverage
+    const layerCards = config.layerCards
+    const totalNeeded = layerCards
+      ? layerCards.reduce((a, b) => a + b, 0)
+      : this._calcTotalNeeded(layers, rows, cols)
+
     const cardList = this._buildCardList(config, totalNeeded)
-    this._fillGrid(cardList, layers, rows, cols)
+    this._fillGrid(cardList, layers, rows, cols, layerCards)
     this._updateCoveredState()
     this._emitBoardInit()
   }
@@ -151,34 +181,43 @@ export class Board {
 
   private _fillGrid(
     cardList: Array<{ type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig }>,
-    layers: number, rows: number, cols: number
+    layers: number, rows: number, cols: number,
+    layerCards?: number[]
   ): void {
-    const eventCards = cardList.filter(c => c.type === 'event')
+    // Separate normal and event cards, then interleave event cards randomly
+    // so func cards appear distributed across all layers, not just the top.
     const normalCards = cardList.filter(c => c.type === 'normal')
+    const eventCards = cardList.filter(c => c.type === 'event')
     // sort rare cards to lower layers
     normalCards.sort((a, b) => {
       const order: Record<string, number> = { rare: 0, uncommon: 1, common: 2 }
       return (order[(a.config as NormalCardConfig).rarity] || 2) - (order[(b.config as NormalCardConfig).rarity] || 2)
     })
+    // Randomly insert event cards into the normal card list
+    for (const ev of eventCards) {
+      const pos = Math.floor(Math.random() * (normalCards.length + 1))
+      normalCards.splice(pos, 0, ev)
+    }
 
     for (let l = 0; l < layers; l++) {
-      let coverage: number
-      if (layers === 1) coverage = 0.95
-      else if (l === 0) coverage = 0.85
-      else if (l === layers - 1) coverage = 0.35
-      else coverage = 0.5
+      let needed: number
+      if (layerCards && layerCards[l] !== undefined) {
+        needed = layerCards[l]
+      } else {
+        let coverage: number
+        if (layers === 1) coverage = 0.95
+        else if (l === 0) coverage = 0.85
+        else if (l === layers - 1) coverage = 0.35
+        else coverage = 0.5
+        const rawNeeded = Math.floor(rows * cols * coverage)
+        needed = rawNeeded - (rawNeeded % 3)
+      }
 
-      const rawNeeded = Math.floor(rows * cols * coverage)
-      const needed = rawNeeded - (rawNeeded % 3) // ensure 3n for guaranteed elimination
       let placed = 0
       for (let r = 0; r < rows && placed < needed; r++) {
         for (let c = 0; c < cols && placed < needed; c++) {
           if (this.grid[l][r][c] !== null) continue
-          let cardData: { type: 'normal' | 'event'; config: NormalCardConfig | FuncCardConfig } | undefined
-          if (l === layers - 1 && eventCards.length > 0) cardData = eventCards.shift()
-          else if (normalCards.length > 0) cardData = normalCards.shift()
-          else if (eventCards.length > 0) cardData = eventCards.shift()
-          else break
+          const cardData = normalCards.shift()
           if (!cardData) break
           const card = createCardData({ type: cardData.type, config: cardData.config, layer: l, row: r, col: c })
           this.grid[l][r][c] = cardToBoardCard(card, false)
@@ -203,12 +242,40 @@ export class Board {
   private _isCovered(card: BoardCard): boolean {
     const upperLayer = card.layer + 1
     if (upperLayer >= this.grid.length) return false
-    const checkPositions = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]
-    for (const [dr, dc] of checkPositions) {
-      const rr = card.row + dr, cc = card.col + dc
-      if (rr >= 0 && rr < this.grid[upperLayer].length &&
-          cc >= 0 && cc < this.grid[upperLayer][0].length &&
-          this.grid[upperLayer][rr][cc] !== null) return true
+
+    // Pixel-level overlap with minimum area threshold.
+    // Only mark as "covered" if an upper card obscures >20% of this card's area.
+    // Barely-touching edges don't count — the exposed portion stays highlighted.
+    const MIN_OVERLAP_RATIO = 0.08
+    const cardArea = this.cardWidth * this.cardHeight
+    const minOverlapArea = cardArea * MIN_OVERLAP_RATIO
+
+    const cx = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX
+    const cy = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY
+    const cRight = cx + this.cardWidth
+    const cBottom = cy + this.cardHeight
+
+    for (let r = 0; r < this.grid[upperLayer].length; r++) {
+      for (let c = 0; c < this.grid[upperLayer][0].length; c++) {
+        const upper = this.grid[upperLayer][r][c]
+        if (!upper || upper.isRemoved) continue
+
+        const ux = this.offsetX + c * (this.cardWidth + this.gap) + upperLayer * this.layerOffsetX
+        const uy = this.offsetY + r * (this.cardHeight + this.gap) - upperLayer * this.layerOffsetY
+        const uRight = ux + this.cardWidth
+        const uBottom = uy + this.cardHeight
+
+        // AABB intersection
+        const overlapX = Math.min(cRight, uRight) - Math.max(cx, ux)
+        const overlapY = Math.min(cBottom, uBottom) - Math.max(cy, uy)
+
+        if (overlapX > 0 && overlapY > 0) {
+          const overlapArea = overlapX * overlapY
+          if (overlapArea >= minOverlapArea) {
+            return true
+          }
+        }
+      }
     }
     return false
   }
@@ -264,6 +331,65 @@ export class Board {
     const toRemove = covered.slice(0, count)
     for (const card of toRemove) this.removeCard(card.uid)
     return toRemove
+  }
+
+  /** S8 屏幕切换: remove all cards of a given cardId from the board */
+  removeAllOfType(cardId: string): number {
+    let removed = 0
+    for (let l = 0; l < this.grid.length; l++)
+      for (let r = 0; r < this.grid[l].length; r++)
+        for (let c = 0; c < this.grid[l][r].length; c++) {
+          const card = this.grid[l][r][c]
+          if (card && card.cardId === cardId && !card.isRemoved) {
+            card.isRemoved = true
+            this.grid[l][r][c] = null
+            removed++
+          }
+        }
+    if (removed > 0) {
+      this._updateCoveredState()
+      this._emitBoardChanged()
+      this._emitBoardInit()
+    }
+    return removed
+  }
+
+  /** Get all unique card IDs currently on the board (for skill targeting) */
+  getCardTypesOnBoard(): string[] {
+    const seen = new Set<string>()
+    for (let l = 0; l < this.grid.length; l++)
+      for (let r = 0; r < this.grid[l].length; r++)
+        for (let c = 0; c < this.grid[l][r].length; c++) {
+          const card = this.grid[l][r][c]
+          if (card && !card.isRemoved) seen.add(card.cardId)
+        }
+    return Array.from(seen)
+  }
+
+  /** Undo: restore a card to the board grid */
+  restoreCard(card: BoardCard): void {
+    const { layer, row, col } = card
+    if (layer < 0 || layer >= this.grid.length) return
+    if (row < 0 || row >= this.grid[layer].length) return
+    if (col < 0 || col >= this.grid[layer][row].length) return
+    card.isRemoved = false
+    card.isCovered = false
+    this.grid[layer][row][col] = card
+    this._updateCoveredState()
+    this._emitBoardChanged()
+    this._emitBoardInit()
+  }
+
+  /** Force all remaining cards to be uncovered (deadlock recovery) */
+  forceUncoverAll(): void {
+    for (let l = 0; l < this.grid.length; l++)
+      for (let r = 0; r < this.grid[l].length; r++)
+        for (let c = 0; c < this.grid[l][r].length; c++) {
+          const card = this.grid[l][r][c]
+          if (card && !card.isRemoved) card.isCovered = false
+        }
+    this._emitBoardChanged()
+    this._emitBoardInit()
   }
 
   hasCards(): boolean {

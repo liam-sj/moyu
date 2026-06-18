@@ -77,6 +77,10 @@ export interface LevelConfig {
   totalCards: number
   steps: number
   slotLimit: number
+  /** Exact card count per layer [bottom, ..., top]. Overrides coverage-based calculation. */
+  layerCards?: number[]
+  /** Gap between cards as ratio of cardWidth (default 0 for fixed 8px gap). e.g. 0.3 = 30% */
+  gapRatio?: number
 }
 
 // ── 技能 ──
@@ -107,6 +111,8 @@ export interface SkillContext {
   extraSkillTrigger: boolean
   stepsUnlimited: boolean
   slotUnlimited: boolean
+  /** S8 屏幕切换: cardId to clear from the board */
+  selectAndClearTarget?: string | null
 }
 
 // ── 游戏结果 ──
