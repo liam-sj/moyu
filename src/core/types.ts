@@ -81,6 +81,8 @@ export interface LevelConfig {
   layerCards?: number[]
   /** Gap between cards as ratio of cardWidth (default 0 for fixed 8px gap). e.g. 0.3 = 30% */
   gapRatio?: number
+  /** Layers (by index) where cards should be placed in tight clusters */
+  clusterLayers?: number[]
 }
 
 // ── 技能 ──
@@ -113,6 +115,8 @@ export interface SkillContext {
   slotUnlimited: boolean
   /** S8 屏幕切换: cardId to clear from the board */
   selectAndClearTarget?: string | null
+  /** S1 移出三张: eject first 3 cards to holding area */
+  ejectSlots: boolean
 }
 
 // ── 游戏结果 ──

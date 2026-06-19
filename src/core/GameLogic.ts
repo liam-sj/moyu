@@ -200,9 +200,9 @@ export class GameLogic {
     this.slotBar.ejectFirstThree()
   }
 
-  /** Eject first 3 cards from slot bar to holding area above */
-  ejectSlots(): void {
-    this.slotBar.ejectFirstThree()
+  /** Shuffle remaining board cards */
+  shuffleBoard(): void {
+    this.board.shuffleBoard()
   }
 
   getSkillContext(): any {
@@ -267,6 +267,8 @@ export class GameLogic {
       swapTwoInSlot: false,
       gainWildCard: false,
       extraSkillTrigger: false,
+      get ejectSlots() { return false },
+      set ejectSlots(v: boolean) { if (v) self.slotBar.ejectFirstThree() },
     }
   }
 

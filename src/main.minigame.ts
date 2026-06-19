@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js-legacy'
 
 // ── PixiJS 微信补丁 ──
 PIXI.settings.FAIL_IF_MAJOR_PERFORMANCE_CAVEAT = false
+PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.LINEAR  // smooth texture scaling
 try {
   if ((PIXI as any).Renderer?.prototype) {
     (PIXI as any).Renderer.prototype._unsafeEvalCheck = function _noop() {}
@@ -21,13 +22,17 @@ const app = new PIXI.Application({
   view: getMainCanvas(),
   width: sysInfo.windowWidth,
   height: sysInfo.windowHeight,
-  backgroundColor: 0x2C3E50,
-  backgroundAlpha: 1,
-  antialias: false,
+  backgroundColor: 0x000000,
+  backgroundAlpha: 0,
+  antialias: true,
   resolution: 1,
   autoDensity: false,
   forceCanvas: true,
 })
+
+// ── 加载卡片合图纹理 ──
+import { loadCardAtlas } from './views/CardView'
+loadCardAtlas()
 
 // ── 场景管理 ──
 import { SceneManager } from './engine/SceneManager'

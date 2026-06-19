@@ -46,7 +46,7 @@ export class ResultOverlay extends Scene {
       ? (nextLevelId ? '准备挑战 ' + nextLevelName + '！' : '成功清空全部卡片')
       : ('失败原因: ' + this.result.reason)
     const reason = new PIXI.Text(reasonText, {
-      fontFamily: 'sans-serif', fontSize: 14, fill: '#95A5A6', align: 'center',
+      fontFamily: 'sans-serif', fontSize: 14, fill: '#9B8B7A', align: 'center',
     } as any)
     reason.anchor.set(0.5); reason.x = w / 2; reason.y = h * 0.24
     this.container.addChild(reason)

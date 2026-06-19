@@ -16,9 +16,9 @@ type Ctx = SkillContext
 
 const SKILLS: SkillConfig[] = [
   // ═══ 常规技能 (S1-S8, 等概率) ═══
-  { id: 'S1', name: '飞行模式',   icon: '📵', tag: TAG.RHYTHM,
-    desc: '额外新增3个卡槽（可正常消除）',
-    apply: (c: Ctx) => { c.slotFreeClicks = 3 } },
+  { id: 'S1', name: '移出三张',   icon: '📤', tag: TAG.RELIEF,
+    desc: '将卡槽前3张移到移出区',
+    apply: (c: Ctx) => { c.ejectSlots = true } },
 
   { id: 'S2', name: '同事掩护',   icon: '🤝', tag: TAG.TOLERANCE,
     desc: '本局槽位上限+1（永久）',

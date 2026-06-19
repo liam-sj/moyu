@@ -15,24 +15,25 @@ export const LEVELS: Record<string, LevelConfig> = {
     steps: 27,                 // 18×1.5，极其充裕
     slotLimit: 7,
     layerCards: [9, 9],        // 两层各 9 张，整齐排列
-    gapRatio: 0,               // 使用固定 20px 间距
+    gapRatio: 0,               // 固定间距模式
   },
   // 地狱关 — 通关率 3-8%，5层金字塔密集堆叠
   level2: {
     id: 'level2',
     name: '第二关·地狱',
     normalCardTypes: 6,        // 6种卡：3种常见+3种稀有，高分散难凑齐
-    funcCardCount: 9,          // 适量功能卡（约14%）
+    funcCardCount: 12,         // 功能卡（约18%）
     funcTypes: ['negative', 'positive', 'dual'],
-    funcRatio: { negative: 0.6, positive: 0.2, dual: 0.2 },
-    layers: 5,                 // 5层金字塔
+    funcRatio: { negative: 0.7, positive: 0.1, dual: 0.2 },
+    layers: 10,                // 10层金字塔：5层底+5层聚集
     gridRows: 5,
-    gridCols: 6,               // 6×5=30格，底层24张=80%密度
-    totalCards: 66,            // 24+18+12+8+4=66张，22组消除
-    steps: 46,                 // 紧凑步数，容错极低
-    slotLimit: 7,              // 7槽
-    layerCards: [24, 18, 12, 8, 4],  // 金字塔：底层密→顶层疏
-    gapRatio: 0.08,            // 密集间距8%卡宽
+    gridCols: 6,               // 6×5=30格
+    totalCards: 84,            // 24+18+13+10+7+4+3+2+2+1=84, 28组消除
+    steps: 85,                 // 84张卡+1步容错
+    slotLimit: 6,
+    layerCards: [24, 18, 13, 10, 7, 4, 3, 2, 2, 1],
+    clusterLayers: [5, 6, 7, 8, 9],  // 顶层5层：3簇聚集，几乎重叠
+    gapRatio: 0.08,
   },
 }
 

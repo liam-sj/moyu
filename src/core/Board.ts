@@ -25,29 +25,25 @@ export class Board {
 
   calcLayout(screenW: number, screenH: number, rows: number, cols: number, layers: number, gapRatio = 0): void {
     const areaTop = 20
-    const areaBottom = 200
+    const areaBottom = gapRatio > 0 ? 240 : 200
     const areaH = screenH - areaTop - areaBottom
-    const areaW = screenW - 20
+    const areaW = screenW - (gapRatio > 0 ? 40 : 20)
 
-    // Unified card sizing for both levels.
-    // Level 2 (6 cols + 4 layers × 0.50) is the constraining layout.
-    // We compute cardWidth from Level 2's effectiveCols, then Level 1 reuses it.
-    const layerOffsetRatio = gapRatio > 0 ? 0.50 : 0
-    const preGap = gapRatio > 0 ? 0 : 20
+    // Sizing: Level 2 uses effectiveCols; Level 1 targets similar card size with wider grid
+    const layerOffsetRatio = gapRatio > 0 ? 0.15 : 0
+    const preGap = gapRatio > 0 ? 0 : 30
     const effectiveCols = cols + (layers - 1) * layerOffsetRatio
 
     if (gapRatio > 0) {
-      // Dense pyramid: cardWidth driven by effectiveCols to fill screen
       this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / effectiveCols)
     } else {
-      // Simple layout: targeted card width for neat 3×3 grid (~50px)
-      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / (cols + 3))
+      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / 6)
     }
     this.cardHeight = Math.floor(this.cardWidth * 1.25)
 
     this.layerOffsetX = gapRatio > 0 ? Math.floor(this.cardWidth * layerOffsetRatio) : 0
     this.layerOffsetY = gapRatio > 0 ? Math.floor(this.cardHeight * 0.40) : 40
-    this.gap = gapRatio > 0 ? Math.floor(this.cardWidth * gapRatio) : 20
+    this.gap = gapRatio > 0 ? Math.floor(this.cardWidth * gapRatio) : 30
     this.staggerLayers = gapRatio > 0
 
     // Center the widest (top) layer's visual extent
@@ -59,7 +55,8 @@ export class Board {
     const gridVisualHeight = this.cardHeight * rows + this.gap * (rows - 1)
     const centeredOffsetY = areaTop + Math.floor((areaH - gridVisualHeight) / 2)
     const minOffsetY = areaTop + (layers - 1) * this.layerOffsetY
-    this.offsetY = Math.max(centeredOffsetY, minOffsetY)
+    const extraShift = gapRatio > 0 ? Math.floor(areaH * 0.15) : 0
+    this.offsetY = Math.max(centeredOffsetY, minOffsetY) + extraShift
   }
 
   generate(config: LevelConfig): void {
@@ -199,6 +196,8 @@ export class Board {
       normalCards.splice(pos, 0, ev)
     }
 
+    const clusterLayers: number[] = this.config?.clusterLayers || []
+
     for (let l = 0; l < layers; l++) {
       let needed: number
       if (layerCards && layerCards[l] !== undefined) {
@@ -213,15 +212,43 @@ export class Board {
         needed = rawNeeded - (rawNeeded % 3)
       }
 
+      const isCluster = clusterLayers.includes(l)
       let placed = 0
-      for (let r = 0; r < rows && placed < needed; r++) {
-        for (let c = 0; c < cols && placed < needed; c++) {
-          if (this.grid[l][r][c] !== null) continue
-          const cardData = normalCards.shift()
-          if (!cardData) break
-          const card = createCardData({ type: cardData.type, config: cardData.config, layer: l, row: r, col: c })
-          this.grid[l][r][c] = cardToBoardCard(card, false)
-          placed++
+
+      if (isCluster) {
+        // Cluster placement: 3 hot-spots, cards tightly packed
+        const clusters = [
+          { rMin: 0, rMax: 1, cMin: 0, cMax: 1 },  // top-left
+          { rMin: 2, rMax: 3, cMin: 2, cMax: 3 },  // center
+          { rMin: 1, rMax: 2, cMin: 4, cMax: 5 },  // right
+        ]
+        const cardsPerCluster = Math.ceil(needed / clusters.length)
+
+        for (const cl of clusters) {
+          let clPlaced = 0
+          for (let r = cl.rMin; r <= cl.rMax && clPlaced < cardsPerCluster; r++) {
+            for (let c = cl.cMin; c <= cl.cMax && clPlaced < cardsPerCluster; c++) {
+              if (r >= rows || c >= cols) continue
+              if (this.grid[l][r][c] !== null) continue
+              const cardData = normalCards.shift()
+              if (!cardData) break
+              const card = createCardData({ type: cardData.type, config: cardData.config, layer: l, row: r, col: c })
+              this.grid[l][r][c] = cardToBoardCard(card, false)
+              clPlaced++
+              placed++
+            }
+          }
+        }
+      } else {
+        for (let r = 0; r < rows && placed < needed; r++) {
+          for (let c = 0; c < cols && placed < needed; c++) {
+            if (this.grid[l][r][c] !== null) continue
+            const cardData = normalCards.shift()
+            if (!cardData) break
+            const card = createCardData({ type: cardData.type, config: cardData.config, layer: l, row: r, col: c })
+            this.grid[l][r][c] = cardToBoardCard(card, false)
+            placed++
+          }
         }
       }
     }
@@ -375,6 +402,42 @@ export class Board {
     card.isRemoved = false
     card.isCovered = false
     this.grid[layer][row][col] = card
+    this._updateCoveredState()
+    this._emitBoardChanged()
+    this._emitBoardInit()
+  }
+
+  /** Shuffle all remaining cards' positions on the board */
+  shuffleBoard(): void {
+    const cards: BoardCard[] = []
+    const positions: Array<{ l: number; r: number; c: number }> = []
+    for (let l = 0; l < this.grid.length; l++)
+      for (let r = 0; r < this.grid[l].length; r++)
+        for (let c = 0; c < this.grid[l][r].length; c++) {
+          const card = this.grid[l][r][c]
+          if (card && !card.isRemoved) {
+            cards.push(card)
+            positions.push({ l, r, c })
+          }
+        }
+
+    // Shuffle cards while keeping positions the same
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[cards[i], cards[j]] = [cards[j], cards[i]]
+    }
+
+    // Clear grid and re-place
+    for (const pos of positions) {
+      this.grid[pos.l][pos.r][pos.c] = null
+    }
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[i]
+      const p = positions[i]
+      c.layer = p.l; c.row = p.r; c.col = p.c
+      this.grid[p.l][p.r][p.c] = c
+    }
+
     this._updateCoveredState()
     this._emitBoardChanged()
     this._emitBoardInit()

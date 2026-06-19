@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import type { BoardCard } from '../core/types'
 import { getCardColor } from '../core/Card'
+import { ATLAS, atlasKey, ATLAS_PATH, buildAtlas } from '../config/atlas'
 
 function hexToInt(hex: string): number {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -8,6 +9,76 @@ function hexToInt(hex: string): number {
     return (parseInt(result[1], 16) << 16) | (parseInt(result[2], 16) << 8) | parseInt(result[3], 16)
   }
   return 0xFF8C42
+}
+
+/** Shared base texture — loaded once via wx.createImage, shared by all CardViews */
+let _baseTexture: PIXI.BaseTexture | null = null
+
+let _onAtlasLoaded: (() => void) | null = null
+
+export function onAtlasReady(cb: () => void): void {
+  if (_baseTexture) { cb(); return }
+  _onAtlasLoaded = cb
+}
+
+export function loadCardAtlas(): void {
+  if (typeof wx === 'undefined') return
+  const img = wx.createImage()
+  img.onload = () => {
+    buildAtlas(img.width, img.height)
+    const canvas = wx.createCanvas()
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+    if (ctx.imageSmoothingQuality) (ctx as any).imageSmoothingQuality = 'high'
+    ctx.drawImage(img, 0, 0)
+    _baseTexture = PIXI.BaseTexture.from(canvas)
+    if (_onAtlasLoaded) { _onAtlasLoaded(); _onAtlasLoaded = null }
+  }
+  img.onerror = (e: any) => { console.warn('Card atlas load failed', e) }
+  img.src = ATLAS_PATH
+}
+
+/** Create a card sprite (or emoji text fallback) for use in slots and board */
+export function createCardImage(
+  cardId: string, icon: string, isEvent: boolean, isRevealed: boolean,
+  maxW: number, maxH: number, covered = false
+): PIXI.Container {
+  const ctn = new PIXI.Container()
+  const tex = getTexture(cardId, isEvent, isRevealed)
+  if (tex) {
+    const sprite = new PIXI.Sprite(tex)
+    sprite.anchor.set(0.5)
+    // Maintain aspect ratio, fit within the target area
+    const scale = Math.min(maxW * 0.95 / tex.width, maxH * 0.92 / tex.height)
+    sprite.width = tex.width * scale
+    sprite.height = tex.height * scale
+    sprite.x = -maxW * 0.01
+    sprite.y = -maxH * 0.02
+    if (covered) sprite.tint = 0x667788
+    ctn.addChild(sprite)
+  } else {
+    const displayIcon = (isEvent && !isRevealed) ? '❓' : icon
+    const txt = new PIXI.Text(displayIcon, {
+      fontFamily: 'sans-serif', fontSize: Math.max(12, Math.floor(maxW * 0.45)), align: 'center',
+    } as any)
+    txt.anchor.set(0.5)
+    ctn.addChild(txt)
+  }
+  return ctn
+}
+
+/** Texture cache — key → PIXI.Texture, reused across all CardViews */
+const _texCache: Record<string, PIXI.Texture> = {}
+
+function getTexture(cardId: string, isEvent: boolean, isRevealed: boolean): PIXI.Texture | null {
+  if (!_baseTexture) return null
+  const key = atlasKey(cardId, isEvent, isRevealed)
+  if (_texCache[key]) return _texCache[key]
+  const cell = ATLAS[key]
+  if (!cell) return null
+  _texCache[key] = new PIXI.Texture(_baseTexture, new PIXI.Rectangle(cell.x, cell.y, cell.w, cell.h))
+  return _texCache[key]
 }
 
 export class CardView {
@@ -18,8 +89,9 @@ export class CardView {
   private _cardWidth: number
   private _cardHeight: number
   private _isCovered: boolean
-  private _targetX: number
-  private _targetY: number
+  /** Exposed for batch animation */
+  readonly targetX: number
+  readonly targetY: number
 
   constructor(
     card: BoardCard,
@@ -51,8 +123,8 @@ export class CardView {
     const jitterX = ((uidNum * 7 + 13) % 7) - 3
     const jitterY = ((uidNum * 13 + 7) % 7) - 3
 
-    this._targetX = baseX + jitterX
-    this._targetY = baseY + jitterY
+    this.targetX = baseX + jitterX
+    this.targetY = baseY + jitterY
 
     this._draw()
   }
@@ -67,8 +139,8 @@ export class CardView {
     this.container.alpha = 0
     this.container.scale.set(0.6)
 
-    const targetX = this._targetX
-    const targetY = this._targetY
+    const targetX = this.targetX
+    const targetY = this.targetY
     const startTime = Date.now() + delay
 
     const ticker = PIXI.Ticker.shared
@@ -99,10 +171,37 @@ export class CardView {
     ticker.add(tick)
   }
 
+  /** Animate from current position to target (for shuffle) */
+  animateInToTarget(delay: number, duration = 500): void {
+    const fromX = this.container.x
+    const fromY = this.container.y
+    const targetX = this.targetX
+    const targetY = this.targetY
+    const startTime = Date.now() + delay
+
+    const ticker = PIXI.Ticker.shared
+    const tick = () => {
+      if (this._destroyed) { ticker.remove(tick); return }
+      const now = Date.now()
+      if (now < startTime) return
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const t = 1 - Math.pow(1 - progress, 2)
+      this.container.x = fromX + (targetX - fromX) * t
+      this.container.y = fromY + (targetY - fromY) * t
+      if (progress >= 1) {
+        this.container.x = targetX
+        this.container.y = targetY
+        ticker.remove(tick)
+      }
+    }
+    ticker.add(tick)
+  }
+
   /** Skip animation — snap to target position */
   snapToTarget(): void {
-    this.container.x = this._targetX
-    this.container.y = this._targetY
+    this.container.x = this.targetX
+    this.container.y = this.targetY
     this.container.alpha = 1
     this.container.scale.set(1)
   }
@@ -133,57 +232,75 @@ export class CardView {
     // Main shadow (bottom-right offset)
     const shadow = new PIXI.Graphics()
     shadow.beginFill(0x000000, shadowAlpha)
-    shadow.drawRoundedRect(shadowOffset, shadowOffset + shadowBlur * 0.5, w, h, 6)
+    shadow.drawRoundedRect(shadowOffset, shadowOffset + shadowBlur * 0.5, w, h, 8)
     shadow.endFill()
     this.container.addChild(shadow)
 
     // Secondary lighter shadow for softer depth
     const shadow2 = new PIXI.Graphics()
     shadow2.beginFill(0x000000, shadowAlpha * 0.5)
-    shadow2.drawRoundedRect(shadowOffset + 1, shadowOffset + 1, w, h, 6)
+    shadow2.drawRoundedRect(shadowOffset + 1, shadowOffset + 1, w, h, 8)
     shadow2.endFill()
     this.container.addChild(shadow2)
 
     const colorStr = getCardColor(card)
     const colorInt = hexToInt(colorStr)
 
-    // Card body.
-    // Uncovered  → bright white, full highlight, clearly clickable
-    // Covered    → dark grey, heavily obscured "buried" look
-    const bg = new PIXI.Graphics()
-    bg.beginFill(covered ? 0xB0BCC8 : 0xFFFFFF)
-    bg.drawRoundedRect(0, 0, w, h, 6)
-    bg.endFill()
-    bg.lineStyle(1, covered ? 0x99A4B0 : 0xD0D6DC, 0.8)
-    bg.drawRoundedRect(0, 0, w, h, 6)
-    bg.lineStyle(2, colorInt, covered ? 0.25 : 0.75)
-    bg.drawRoundedRect(1, 1, w - 2, h - 2, 5)
-    this.container.addChild(bg)
-
-    // Covered cards get a heavy dark overlay
+    // ── 3D card body ──
     if (covered) {
-      const coverOverlay = new PIXI.Graphics()
-      coverOverlay.beginFill(0x1A252F, 0.32)
-      coverOverlay.drawRoundedRect(0, 0, w, h, 6)
-      coverOverlay.endFill()
-      this.container.addChild(coverOverlay)
+      // Covered: flat dark grey, no 3D pop
+      const bg = new PIXI.Graphics()
+      bg.beginFill(0xB0BCC8)
+      bg.drawRoundedRect(0, 0, w, h, 8)
+      bg.endFill()
+      bg.lineStyle(1, 0x99A4B0, 0.8)
+      bg.drawRoundedRect(0, 0, w, h, 8)
+      this.container.addChild(bg)
+
+      const overlay = new PIXI.Graphics()
+      overlay.beginFill(0x1A252F, 0.32)
+      overlay.drawRoundedRect(0, 0, w, h, 8)
+      overlay.endFill()
+      this.container.addChild(overlay)
+    } else {
+      // Uncovered: 3D raised look with highlights
+      // Main body
+      const body = new PIXI.Graphics()
+      body.beginFill(0xFFFFFF)
+      body.drawRoundedRect(0, 0, w, h, 8)
+      body.endFill()
+      // Left + top highlight (lighter)
+      body.beginFill(0xFAFBFC, 0.6)
+      body.drawRoundedRect(1, 1, w - 2, Math.floor(h * 0.55), 5)
+      body.endFill()
+      this.container.addChild(body)
+
+      // Bottom edge shadow (darker strip for depth)
+      const botShadow = new PIXI.Graphics()
+      botShadow.beginFill(0xE0E4E8, 0.7)
+      botShadow.drawRoundedRect(2, h - 6, w - 4, 4, 2)
+      botShadow.endFill()
+      this.container.addChild(botShadow)
+
+      // Right edge shadow
+      const rightShadow = new PIXI.Graphics()
+      rightShadow.beginFill(0xE8ECF0, 0.5)
+      rightShadow.drawRoundedRect(w - 4, 4, 3, h - 8, 2)
+      rightShadow.endFill()
+      this.container.addChild(rightShadow)
+
+      // Subtle outer border
+      const border = new PIXI.Graphics()
+      border.lineStyle(1, colorInt, 0.25)
+      border.drawRoundedRect(0.5, 0.5, w - 1, h - 1, 6)
+      this.container.addChild(border)
     }
 
-    // Emoji-only display — centered in the card
-    const displayIcon = (card.type === 'event' && !card.isRevealed) ? '❓' : card.icon
-    const iconText = new PIXI.Text(displayIcon, {
-      fontFamily: 'sans-serif', fontSize: Math.max(18, Math.floor(w * 0.50)), align: 'center',
-    } as any)
-    iconText.anchor.set(0.5)
-    iconText.x = w / 2
-    iconText.y = h / 2
-    this.container.addChild(iconText)
-
-    const bar = new PIXI.Graphics()
-    bar.beginFill(colorInt, 0.8)
-    bar.drawRect(4, h - 5, w - 8, 3)
-    bar.endFill()
-    this.container.addChild(bar)
+    // Card image from texture atlas, with emoji fallback
+    const img = createCardImage(card.cardId, card.icon,
+      card.type === 'event', card.isRevealed, w, h, covered)
+    img.x = w / 2; img.y = h / 2
+    this.container.addChild(img)
   }
 
   destroy(): void {

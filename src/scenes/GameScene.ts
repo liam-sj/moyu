@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { GameLogic } from '../core/GameLogic'
-import { CardView } from '../views/CardView'
+import { CardView, createCardImage } from '../views/CardView'
 import { Button } from '../views/Button'
 import { getLevelConfig } from '../config/levels'
 import type {
@@ -41,6 +41,7 @@ export class GameScene extends Scene {
   private _skillCallback: (() => void) | null = null
   private _skillBtnContainer: PIXI.Container | null = null
   private _actionHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _bottomBtnContainers: PIXI.Container[] = []
 
   // Skill popup state
   private pendingSkills: SkillConfig[] | null = null
@@ -51,6 +52,16 @@ export class GameScene extends Scene {
   // Deferred transition (avoid tearing down scene during event processing)
   private _pendingTransition: { levelId: string } | null = null
   private _firstRender = true
+  private _shuffleOldPositions: Record<string, { x: number; y: number }> | null = null
+  // Batch animations driven by onUpdate (no ticker per card)
+  private _dealingCards: Array<{
+    view: CardView; uid: string; targetX: number; targetY: number
+    _fromX: number; _fromY: number; _startTime: number; _animMs: number
+  }> = []
+  private _shuffleCards: Array<{
+    view: CardView; uid: string; fromX: number; fromY: number
+    targetX: number; targetY: number; _startTime: number; _animMs: number
+  }> = []
   private _flyEffects: Array<{
     view: CardView; uid: string; startX: number; startY: number
     targetX: number; targetY: number; elapsed: number; duration: number
@@ -76,6 +87,20 @@ export class GameScene extends Scene {
     // Enable z-index sorting so upper-layer cards render on top of lower ones
     this.boardLayer.sortableChildren = true
 
+    // Background image
+    const bgImg = wx.createImage()
+    bgImg.onload = () => {
+      const canvas = wx.createCanvas()
+      canvas.width = bgImg.width; canvas.height = bgImg.height
+      canvas.getContext('2d').drawImage(bgImg, 0, 0)
+      const tex = PIXI.Texture.from(canvas)
+      const bg = new PIXI.Sprite(tex)
+      bg.width = this.screenW; bg.height = this.screenH
+      bg.alpha = 0.65
+      this.container.addChildAt(bg, 0)
+    }
+    bgImg.src = 'assets/cards/background.png'
+
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
     this.listen<StepsChangedEvent>('stepsChanged', () => this.renderHUD())
@@ -94,6 +119,7 @@ export class GameScene extends Scene {
 
     // Buttons below slot bar
     this._actionHitAreas = []
+    this._bottomBtnContainers = []
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
     const btnY = slotBarBottom + 8
     const btnH = 32
@@ -101,32 +127,43 @@ export class GameScene extends Scene {
     const btnGap = 6
     const btnW = Math.floor((totalBtnW - btnGap * 3) / 4)
 
-    // Eject button: move first 3 cards out of slot
-    const ejectX = 8
-    const ejectBtn = new Button(ejectX, btnY, btnW, btnH, '📤 移出', {
-      bgColor: '#8E44AD', fontSize: 11, radius: 6,
-    })
-    this.container.addChild(ejectBtn.container)
-    this._actionHitAreas.push({ rect: ejectBtn.hitArea, cb: () => { this.logic.ejectSlots(); this.renderSlotBar() } })
-
-    // Undo button
-    const undoX = ejectX + btnW + btnGap
-    const undoBtn = new Button(undoX, btnY, btnW, btnH, '↩️ 撤回', {
+    let bx = 8
+    // Undo
+    const undoBtn = new Button(bx, btnY, btnW, btnH, '↩️ 撤回', {
       bgColor: '#2980B9', fontSize: 11, radius: 6,
     })
     this.container.addChild(undoBtn.container)
+    this._bottomBtnContainers.push(undoBtn.container)
     this._actionHitAreas.push({ rect: undoBtn.hitArea, cb: () => { this.logic.undoLastAction(); this.renderSlotBar(); this.renderHUD() } })
 
-    // Skill button
-    const skillX = undoX + btnW + btnGap
-    this._renderSkillButton(skillX, btnY, btnW, btnH)
+    // Shuffle
+    bx += btnW + btnGap
+    const shuffleBtn = new Button(bx, btnY, btnW, btnH, '🔀 洗牌', {
+      bgColor: '#16A085', fontSize: 11, radius: 6,
+    })
+    this.container.addChild(shuffleBtn.container)
+    this._bottomBtnContainers.push(shuffleBtn.container)
+    this._actionHitAreas.push({ rect: shuffleBtn.hitArea, cb: () => {
+      const oldPos: Record<string, { x: number; y: number }> = {}
+      for (const [uid, view] of this.cardViews) {
+        oldPos[uid] = { x: view.container.x, y: view.container.y }
+      }
+      this._shuffleOldPositions = oldPos
+      this.logic.shuffleBoard()
+      this.renderSlotBar()
+    } })
 
-    // Pause button
-    const pauseX = skillX + btnW + btnGap
-    const pauseBtn = new Button(pauseX, btnY, btnW, btnH, '⏸ 暂停', {
+    // Skill
+    bx += btnW + btnGap
+    this._renderSkillButton(bx, btnY, btnW, btnH)
+
+    // Pause
+    bx += btnW + btnGap
+    const pauseBtn = new Button(bx, btnY, btnW, btnH, '⏸ 暂停', {
       bgColor: '#7F8C8D', fontSize: 11, radius: 6,
     })
     this.container.addChild(pauseBtn.container)
+    this._bottomBtnContainers.push(pauseBtn.container)
     this._pauseHitArea = pauseBtn.hitArea
     this._pauseCallback = () => {
       const { PauseOverlay } = require('./overlays/PauseOverlay')
@@ -135,21 +172,68 @@ export class GameScene extends Scene {
 
     // Initial render
     this.renderSlotBar()
+
+    // Level 2 difficulty warning popup
+    if (this.levelId === 'level2') {
+      this._showDifficultyWarning()
+    }
+
     log(TAG, 'GameScene entered, level=' + this.levelId)
   }
 
   onUpdate(dt: number): void {
+    // Cap dt to avoid huge jumps after lag spikes
+    const frameDt = Math.min(dt, 3)
+
+    // Drive dealing animations (batch, real-time based)
+    const now = Date.now()
+    for (let d = this._dealingCards.length - 1; d >= 0; d--) {
+      const dc = this._dealingCards[d]
+      const elapsed = now - dc._startTime
+      if (elapsed < 0) continue  // still in delay
+      const p = Math.min(elapsed / dc._animMs, 1)
+      const t = 1 - Math.pow(1 - p, 3)
+      dc.view.container.x = dc._fromX + (dc.targetX - dc._fromX) * t
+      dc.view.container.y = dc._fromY + (dc.targetY - dc._fromY) * t
+      dc.view.container.alpha = Math.min(p * 2, 1)
+      dc.view.container.scale.set(0.6 + 0.4 * Math.min(p * 1.5, 1))
+      if (p >= 1) {
+        dc.view.snapToTarget()
+        this._dealingCards.splice(d, 1)
+      }
+    }
+
+    // Drive shuffle animations (real-time based)
+    for (let s = this._shuffleCards.length - 1; s >= 0; s--) {
+      const sc = this._shuffleCards[s]
+      const elapsed = now - sc._startTime
+      if (elapsed < 0) continue
+      const p = Math.min(elapsed / sc._animMs, 1)
+      const t = 1 - Math.pow(1 - p, 2)
+      sc.view.container.x = sc.fromX + (sc.targetX - sc.fromX) * t
+      sc.view.container.y = sc.fromY + (sc.targetY - sc.fromY) * t
+      if (p >= 1) {
+        sc.view.container.x = sc.targetX
+        sc.view.container.y = sc.targetY
+        this._shuffleCards.splice(s, 1)
+      }
+    }
+
     // Drive fly-to-slot animations
     for (let f = this._flyEffects.length - 1; f >= 0; f--) {
       const fly = this._flyEffects[f]
       fly.elapsed += dt
       const progress = Math.min(fly.elapsed / fly.duration, 1)
-      const t = 1 - Math.pow(1 - progress, 2)
+      // Smooth ease-in-out: gentle start, cruise, gentle landing
+      const t = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2
       if (this.cardViews.has(fly.uid)) {
+        const t = 1 - Math.pow(1 - progress, 2)
         fly.view.container.x = fly.startX + (fly.targetX - fly.startX) * t
         fly.view.container.y = fly.startY + (fly.targetY - fly.startY) * t
         fly.view.container.scale.set(1 - progress * 0.5)
-        fly.view.container.alpha = 1 - progress * 0.4
+        fly.view.container.alpha = 1 - progress * 0.3
       }
       if (progress >= 1) {
         if (this.cardViews.has(fly.uid)) {
@@ -157,7 +241,15 @@ export class GameScene extends Scene {
           this.cardViews.delete(fly.uid)
         }
         this._flyEffects.splice(f, 1)
-        this.renderSlotBar()
+        // Render slot bar now that card has landed
+        this.logic.slotBar.notifySlotChanged()
+        const sbar = this.logic.slotBar
+        for (let i = 0; i < sbar.maxSlots; i++) {
+          if (sbar.slots[i] && sbar.slots[i]!.uid === fly.uid) {
+            sbar.checkMatch(sbar.slots[i]!.cardId)
+            break
+          }
+        }
       }
     }
 
@@ -191,7 +283,7 @@ export class GameScene extends Scene {
     if (this._pendingTransition) {
       const t = this._pendingTransition
       this._pendingTransition = null
-      this.manager.slideReplace(new GameScene(), { levelId: t.levelId }, 65)
+      this._resetLevel(t.levelId)
       return
     }
 
@@ -234,7 +326,7 @@ export class GameScene extends Scene {
     const hasCharges = charges > 0
     const ctn = new PIXI.Container()
     const bg = new PIXI.Graphics()
-    bg.beginFill(hasCharges ? 0xE67E22 : 0x5A6B7D, 0.85)
+    bg.beginFill(hasCharges ? 0xE67E22 : 0x7A6B5D, 0.85)
     bg.drawRoundedRect(x, y, w, h, 8)
     bg.endFill()
     if (hasCharges) {
@@ -256,6 +348,145 @@ export class GameScene extends Scene {
     this._skillCallback = () => {
       if (this.logic) this.logic.skillSystem.openSkillPanel()
     }
+  }
+
+  /** Level 2 difficulty spike warning — slide in from right, hold, slide out left */
+  private _showDifficultyWarning(): void {
+    const w = this.screenW; const h = this.screenH
+    const panelW = 260; const panelH = 120
+    const px = (w - panelW) / 2; const py = h * 0.35
+
+    const panel = new PIXI.Container()
+    panel.x = w  // start off-screen right
+    panel.y = py
+
+    const bg = new PIXI.Graphics()
+    bg.beginFill(0x1A0A0A, 0.95)
+    bg.drawRoundedRect(0, 0, panelW, panelH, 16)
+    bg.endFill()
+    bg.lineStyle(2, 0xE74C3C, 0.8)
+    bg.drawRoundedRect(0, 0, panelW, panelH, 16)
+    panel.addChild(bg)
+
+    const icon = new PIXI.Text('⚠️', {
+      fontFamily: 'sans-serif', fontSize: 32, align: 'center',
+    } as any)
+    icon.anchor.set(0.5); icon.x = panelW / 2; icon.y = 28
+    panel.addChild(icon)
+
+    const title = new PIXI.Text('难度飙升！', {
+      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#E74C3C',
+    } as any)
+    title.anchor.set(0.5); title.x = panelW / 2; title.y = 58
+    panel.addChild(title)
+
+    const desc = new PIXI.Text('10层金字塔 · 84张卡 · 地狱挑战', {
+      fontFamily: 'sans-serif', fontSize: 12, fill: '#E8A0A0',
+    } as any)
+    desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 84
+    panel.addChild(desc)
+
+    this.container.addChild(panel)
+
+    const startTime = Date.now()
+    const slideInDur = 500; const holdDur = 2000; const slideOutDur = 500
+    const totalDur = slideInDur + holdDur + slideOutDur
+
+    const ticker = PIXI.Ticker.shared
+    const tick = () => {
+      const elapsed = Date.now() - startTime
+      if (elapsed < slideInDur) {
+        const t = 1 - Math.pow(1 - elapsed / slideInDur, 2)
+        panel.x = px + (w - px) * (1 - t)
+      } else if (elapsed < slideInDur + holdDur) {
+        panel.x = px
+      } else if (elapsed < totalDur) {
+        const t = Math.pow((elapsed - slideInDur - holdDur) / slideOutDur, 2)
+        panel.x = px - (px + panelW) * t
+        panel.alpha = 1 - t
+      } else {
+        ticker.remove(tick)
+        this.container.removeChild(panel)
+        panel.destroy({ children: true })
+      }
+    }
+    ticker.add(tick)
+  }
+
+  /** Reset game to a new level in-place — no scene swap, just cards regenerate */
+  private _resetLevel(levelId: string): void {
+    this.levelId = levelId
+    // Destroy all current card views
+    for (const [_, view] of this.cardViews) view.destroy()
+    this.cardViews.clear()
+    // Clean up active animation objects
+    for (const eff of this._effects) {
+      for (const p of eff.particles) { this.container.removeChild(p); p.destroy() }
+    }
+    this._flyEffects.length = 0
+    this._effects.length = 0
+    this._dealingCards.length = 0
+    this._shuffleCards.length = 0
+    this._firstRender = true
+
+    // Clear board and slot layers
+    this.boardLayer.removeChildren()
+    this.slotLayer.removeChildren()
+    this.hudLayer.removeChildren()
+
+    // Clean up old logic
+    this.logic.skillSystem.reset()
+
+    // Init new level
+    const config = getLevelConfig(levelId)
+    this.logic = new GameLogic(config, this.bus)
+    this.logic.init(this.screenW, this.screenH)
+
+    // Remove old buttons (keep background at index 0)
+    for (const c of this._bottomBtnContainers) {
+      this.container.removeChild(c); c.destroy({ children: true })
+    }
+    this._bottomBtnContainers = []
+    if (this._skillBtnContainer) { this.container.removeChild(this._skillBtnContainer); this._skillBtnContainer.destroy({ children: true }); this._skillBtnContainer = null }
+    this._skillBtnCharges = -1
+    this._actionHitAreas = []
+    const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
+    const btnY2 = slotBarBottom + 8
+    const btnH2 = 32
+    const totalBtnW2 = this.screenW - 16
+    const btnGap2 = 6
+    const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 3) / 4)
+    let bx2 = 8
+    // Undo
+    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 撤回', { bgColor: '#2980B9', fontSize: 11, radius: 6 })
+    this.container.addChild(undoBtn2.container)
+    this._bottomBtnContainers.push(undoBtn2.container)
+    this._actionHitAreas.push({ rect: undoBtn2.hitArea, cb: () => { this.logic.undoLastAction(); this.renderSlotBar(); this.renderHUD() } })
+    bx2 += btnW2 + btnGap2
+    // Shuffle
+    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🔀 洗牌', { bgColor: '#16A085', fontSize: 11, radius: 6 })
+    this.container.addChild(shuffleBtn2.container)
+    this._bottomBtnContainers.push(shuffleBtn2.container)
+    this._actionHitAreas.push({ rect: shuffleBtn2.hitArea, cb: () => {
+      const oldPos: Record<string, { x: number; y: number }> = {}
+      for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
+      this._shuffleOldPositions = oldPos
+      this.logic.shuffleBoard()
+      this.renderSlotBar()
+    } })
+    bx2 += btnW2 + btnGap2
+    // Skill
+    this._renderSkillButton(bx2, btnY2, btnW2, btnH2)
+    bx2 += btnW2 + btnGap2
+    // Pause
+    const pauseBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '⏸ 暂停', { bgColor: '#7F8C8D', fontSize: 11, radius: 6 })
+    this.container.addChild(pauseBtn2.container)
+    this._bottomBtnContainers.push(pauseBtn2.container)
+    this._pauseHitArea = pauseBtn2.hitArea
+
+    // Initial render
+    this.renderSlotBar()
+    if (levelId === 'level2') this._showDifficultyWarning()
   }
 
   // ── Board rendering ──
@@ -287,14 +518,37 @@ export class GameScene extends Scene {
     }
     this.boardLayer.sortChildren()
 
-    // Animate cards in on first render only (re-renders snap to position)
-    if (this._firstRender) {
+    // Shuffle: batch animation (onUpdate-driven)
+    if (this._shuffleOldPositions) {
+      const oldPos = this._shuffleOldPositions
+      this._shuffleOldPositions = null
+      for (const view of views) {
+        const op = oldPos[view.uid]
+        if (op) {
+          view.container.x = op.x; view.container.y = op.y
+          this._shuffleCards.push({
+            view, uid: view.uid,
+            fromX: op.x, fromY: op.y,
+            targetX: view.targetX, targetY: view.targetY,
+            _startTime: Date.now() + 50 + Math.random() * 150,
+            _animMs: 400,
+          })
+        } else { view.snapToTarget() }
+      }
+    } else if (this._firstRender) {
       this._firstRender = false
       for (let i = 0; i < views.length; i++) {
         const view = views[i]
-        const layerDelay = view.layer * 280
-        const randomDelay = ((i * 37 + 13) % 140)
-        view.animateIn(deckX, deckY, layerDelay + randomDelay, 550)
+        ;(view as any)._deckFromX = deckX; (view as any)._deckFromY = deckY
+        view.container.x = deckX; view.container.y = deckY
+        view.container.alpha = 0; view.container.scale.set(0.6)
+        this._dealingCards.push({
+          view, uid: view.uid,
+          targetX: view.targetX, targetY: view.targetY,
+          _fromX: deckX, _fromY: deckY,
+          _startTime: Date.now() + view.layer * 60 + i * 5,
+          _animMs: 350,
+        })
       }
     } else {
       for (const view of views) view.snapToTarget()
@@ -365,15 +619,14 @@ export class GameScene extends Scene {
           fs.drawRoundedRect(fx, fy, fw, fh, 6)
           this.slotLayer.addChild(fs)
 
-          const iconTxt = new PIXI.Text(flightCard.icon, {
-            fontFamily: 'sans-serif', fontSize: Math.max(12, Math.floor(fw * 0.4)), align: 'center',
-          } as any)
-          iconTxt.anchor.set(0.5); iconTxt.x = fx + fw / 2; iconTxt.y = fy + fh / 2
-          this.slotLayer.addChild(iconTxt)
+          const img = createCardImage(flightCard.cardId, flightCard.icon,
+            flightCard.type === 'event', flightCard.isRevealed, fw, fh)
+          img.x = fx + fw / 2; img.y = fy + fh / 2
+          this.slotLayer.addChild(img)
         } else {
           // Empty flight slot — always show ✈️
           fs.lineStyle(1.5, 0x3498DB, 0.45)
-          fs.beginFill(0x2C3E50, 0.18)
+          fs.beginFill(0x5C4033, 0.18)
           fs.drawRoundedRect(fx, fy, fw, fh, 6)
           fs.endFill()
           this.slotLayer.addChild(fs)
@@ -390,10 +643,10 @@ export class GameScene extends Scene {
     // ── Holding slots (移出 area) ──
     const hasHolding = bar.holdingSlots.some(s => s !== null)
     if (hasHolding) {
-      const holdY = freeClicks > 0 || hasFlightCards
-        ? bar.startY - bar.slotHeight - 10 - (bar.slotHeight * 0.75 + 20) - 6
-        : bar.startY - bar.slotHeight - 14
-      const holdH = bar.slotHeight * 0.7
+      // Position above normal bar (and above flight bar if present)
+      const flightBarH = (freeClicks > 0 || hasFlightCards) ? bar.slotHeight * 0.75 + 30 : 0
+      const holdH = bar.slotHeight  // same size as normal slots
+      const holdY = bar.startY - holdH - 10 - flightBarH
 
       // Label
       const holdLabel = new PIXI.Text('📤 移出区', {
@@ -417,11 +670,10 @@ export class GameScene extends Scene {
           hs.drawRoundedRect(hx, hy, hw, holdH, 6)
           this.slotLayer.addChild(hs)
 
-          const hIcon = new PIXI.Text(hCard.icon, {
-            fontFamily: 'sans-serif', fontSize: Math.max(12, Math.floor(hw * 0.38)), align: 'center',
-          } as any)
-          hIcon.anchor.set(0.5); hIcon.x = hx + hw / 2; hIcon.y = hy + holdH / 2
-          this.slotLayer.addChild(hIcon)
+          const hImg = createCardImage(hCard.cardId, hCard.icon,
+            hCard.type === 'event', hCard.isRevealed, hw, holdH)
+          hImg.x = hx + hw / 2; hImg.y = hy + holdH / 2
+          this.slotLayer.addChild(hImg)
         } else {
           hs.lineStyle(1, 0x8E44AD, 0.25)
           hs.drawRoundedRect(hx, hy, hw, holdH, 6)
@@ -432,10 +684,10 @@ export class GameScene extends Scene {
 
     // ── Normal slot bar ──
     const barBg = new PIXI.Graphics()
-    barBg.beginFill(0x1A252F, 0.75)
+    barBg.beginFill(0x3C2820, 0.75)
     barBg.drawRoundedRect(barX, barY, barW, barH, 10)
     barBg.endFill()
-    barBg.lineStyle(1, 0x34495E, 0.6)
+    barBg.lineStyle(1, 0x6B5344, 0.6)
     barBg.drawRoundedRect(barX, barY, barW, barH, 10)
     this.slotLayer.addChild(barBg)
 
@@ -477,12 +729,10 @@ export class GameScene extends Scene {
         this.slotLayer.addChild(bg)
 
         // Emoji only, centered
-        const icon = (slot.type === 'event' && !slot.isRevealed) ? '❓' : slot.icon
-        const iconTxt = new PIXI.Text(icon, {
-          fontFamily: 'sans-serif', fontSize: Math.max(16, Math.floor(w * 0.45)), align: 'center',
-        } as any)
-        iconTxt.anchor.set(0.5); iconTxt.x = x + w / 2; iconTxt.y = y + h / 2
-        this.slotLayer.addChild(iconTxt)
+        const slotImg = createCardImage(slot.cardId, slot.icon,
+          slot.type === 'event', slot.isRevealed, w, h)
+        slotImg.x = x + w / 2; slotImg.y = y + h / 2
+        this.slotLayer.addChild(slotImg)
 
         // Count badge (tiny "×2" in corner)
         if (sameTypeIndices.length >= 2) {
@@ -496,7 +746,7 @@ export class GameScene extends Scene {
       } else {
         // Empty slot — dashed outline
         const empty = new PIXI.Graphics()
-        empty.lineStyle(1, 0x5A6B7D, 0.35)
+        empty.lineStyle(1, 0x7A6B5D, 0.35)
         empty.drawRoundedRect(x, y, w, h, 6)
         this.slotLayer.addChild(empty)
 
@@ -520,7 +770,7 @@ export class GameScene extends Scene {
     const w = this.screenW
 
     const levelTxt = new PIXI.Text(config.name, {
-      fontFamily: 'sans-serif', fontSize: 13, fill: '#95A5A6',
+      fontFamily: 'sans-serif', fontSize: 13, fill: '#9B8B7A',
     } as any)
     levelTxt.x = 10; levelTxt.y = 14
     this.hudLayer.addChild(levelTxt)
@@ -532,7 +782,7 @@ export class GameScene extends Scene {
     const stepsDisplay = stepsUnlimited ? '∞' : String(stepsRemain)
 
     const stepsBg = new PIXI.Graphics()
-    stepsBg.beginFill(stepsWarn ? 0xE74C3C : 0x2C3E50, 0.75)
+    stepsBg.beginFill(stepsWarn ? 0xE74C3C : 0x5C4033, 0.75)
     stepsBg.drawRoundedRect(8, 40, 66, 28, 14)
     stepsBg.endFill()
     this.hudLayer.addChild(stepsBg)
@@ -552,25 +802,10 @@ export class GameScene extends Scene {
     this.hudLayer.addChild(happyTxt)
 
     // Refresh skill button
-    const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const btnGap = 6
-    const btnW2 = Math.floor((this.screenW - 16 - btnGap * 3) / 4)
-    const skillX2 = 8 + (btnW2 + btnGap) * 2
-    this._renderSkillButton(skillX2, slotBarBottom + 8, btnW2, 32)
+    const slotBarBtm = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
+    const bGap = 6; const bW = Math.floor((this.screenW - 16 - bGap * 3) / 4)
+    this._renderSkillButton(8 + (bW + bGap) * 2, slotBarBtm + 8, bW, 32)
 
-    let slotStatus: string
-    if (bar.slotUnlimited) {
-      slotStatus = '∞ 槽位（无限制）'
-    } else {
-      slotStatus = this.logic.slotBar.getVacantCount() + ' 空格'
-    }
-    if (bar.tempSlotLimit9 > 0) slotStatus += ' | 💤装死×' + bar.tempSlotLimit9
-    if (bar.slotOverflowShield) slotStatus += ' | 📊护体'
-    const slotTxt = new PIXI.Text(slotStatus, {
-      fontFamily: 'sans-serif', fontSize: 13, fill: '#95A5A6', align: 'center',
-    } as any)
-    slotTxt.anchor.set(0.5); slotTxt.x = w / 2; slotTxt.y = this.logic.slotBar.startY - 25
-    this.hudLayer.addChild(slotTxt)
   }
 
   // ── Hit areas ──
@@ -592,31 +827,30 @@ export class GameScene extends Scene {
         w: board.cardWidth,
         h: board.cardHeight,
       }, () => {
-        // Vibration feedback
         if (typeof wx !== 'undefined') { wx.vibrateShort({ type: 'light' }) }
 
-        // Get target slot position before the card moves
+        // Calculate where the card will land in the slot bar
         const bar = this.logic.slotBar
-        let targetX: number, targetY: number
-        const freeClicks = this.logic.stepManager.slotFreeClicks
-        if (freeClicks > 0) {
-          // Flight slot
-          const flightY = bar.startY - bar.slotHeight - 10 + 18
-          const emptyFlight = bar.flightSlots.findIndex(s => s === null)
-          const fIdx = emptyFlight >= 0 ? emptyFlight : 0
-          targetX = bar.startX + fIdx * (bar.slotWidth + bar.gap) + bar.slotWidth / 2
-          targetY = flightY + bar.slotHeight * 0.75 / 2
-        } else {
-          // Normal slot
-          const emptyNormal = bar.slots.findIndex(s => s === null)
-          const nIdx = emptyNormal >= 0 ? emptyNormal : 0
-          targetX = bar.startX + nIdx * (bar.slotWidth + bar.gap) + bar.slotWidth / 2
-          targetY = bar.startY + bar.slotHeight / 2
-        }
-
         this.logic.onCardClicked(card.uid)
 
-        // Animate card flying to slot (onUpdate-driven, no ticker)
+        // Find the slot index where the card was just placed
+        let slotIdx = -1; let isFlight = false
+        for (let i = 0; i < bar.maxSlots; i++) {
+          if (bar.slots[i] && bar.slots[i]!.uid === card.uid) { slotIdx = i; break }
+        }
+        if (slotIdx === -1) {
+          for (let i = 0; i < 3; i++) {
+            if (bar.flightSlots[i] && bar.flightSlots[i]!.uid === card.uid) { slotIdx = i; isFlight = true; break }
+          }
+        }
+        const targetX = isFlight
+          ? bar.startX + slotIdx * (bar.slotWidth + bar.gap) + bar.slotWidth / 2
+          : bar.startX + slotIdx * (bar.slotWidth + bar.gap) + bar.slotWidth / 2
+        const targetY = isFlight
+          ? bar.startY - bar.slotHeight - 10 + 18 + bar.slotHeight * 0.75 / 2
+          : bar.startY + bar.slotHeight / 2
+
+        // Fly card from board to slot, render slot bar after landing
         const cardView = this.cardViews.get(card.uid)
         if (cardView) {
           const startX = cardView.container.x
@@ -626,11 +860,10 @@ export class GameScene extends Scene {
             startX, startY, targetX, targetY,
             elapsed: 0, duration: 24,  // 24 frames ≈ 400ms
           })
-        } else {
-          this.renderSlotBar()
         }
+        if (!cardView) this.logic.slotBar.notifySlotChanged()
         this.renderHUD()
-      }, card.layer)  // higher layer = tested first, top card wins on overlap
+      }, card.layer)
     }
   }
 
@@ -733,12 +966,12 @@ export class GameScene extends Scene {
         bg.lineStyle(1.5, 0xF1C40F, canUse ? 0.8 : 0.3)
         bg.beginFill(0x2C1A0A, alpha)
       } else {
-        bg.beginFill(0x2C3E50, alpha)
+        bg.beginFill(0x5C4033, alpha)
       }
       bg.drawRoundedRect(cx, cy, cardW, cardH, 10)
       bg.endFill()
       if (!isLegendary) {
-        bg.lineStyle(1, 0x4A6A8A, 0.3)
+        bg.lineStyle(1, 0xA08060, 0.3)
         bg.drawRoundedRect(cx, cy, cardW, cardH, 10)
       }
       sc.addChild(bg)
@@ -760,7 +993,7 @@ export class GameScene extends Scene {
 
       const descTxt = new PIXI.Text(skill.desc, {
         fontFamily: 'sans-serif', fontSize: 10,
-        fill: isLegendary ? '#E8C870' : '#95A5A6',
+        fill: isLegendary ? '#E8C870' : '#9B8B7A',
         wordWrap: true, wordWrapWidth: cardW - 60,
       } as any)
       descTxt.x = cx + 52; descTxt.y = cy + 32
@@ -792,7 +1025,7 @@ export class GameScene extends Scene {
     const closeY = startY + Math.ceil(skills.length / cols) * (cardH + gap) + 12
     const closeBtnW = 120, closeBtnH = 36
     const closeBg = new PIXI.Graphics()
-    closeBg.beginFill(0x7F8C8D, 0.7)
+    closeBg.beginFill(0x8B7355, 0.7)
     closeBg.drawRoundedRect((w - closeBtnW) / 2, closeY, closeBtnW, closeBtnH, 8)
     closeBg.endFill()
     self.container.addChild(closeBg)
@@ -853,10 +1086,10 @@ export class GameScene extends Scene {
       const by = startY + row * (btnH + gap)
 
       const bg = new PIXI.Graphics()
-      bg.beginFill(0x2C3E50, 0.9)
+      bg.beginFill(0x5C4033, 0.9)
       bg.drawRoundedRect(bx, by, btnW, btnH, 10)
       bg.endFill()
-      bg.lineStyle(1, 0x4A6A8A, 0.4)
+      bg.lineStyle(1, 0xA08060, 0.4)
       bg.drawRoundedRect(bx, by, btnW, btnH, 10)
       self.container.addChild(bg)
       self.skillPopupElements.push(bg)
@@ -875,7 +1108,7 @@ export class GameScene extends Scene {
       self.skillPopupElements.push(iconTxt)
 
       const nameTxt = new PIXI.Text(name, {
-        fontFamily: 'sans-serif', fontSize: 10, fill: '#BDC3C7', align: 'center',
+        fontFamily: 'sans-serif', fontSize: 10, fill: '#A09080', align: 'center',
       } as any)
       nameTxt.anchor.set(0.5); nameTxt.x = bx + btnW / 2; nameTxt.y = by + btnH * 0.78
       self.container.addChild(nameTxt)

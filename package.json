@@ -4,7 +4,7 @@
   "description": "摸鱼大师 - 微信小游戏（PixiJS v7 + TypeScript 栈式架构）",
   "type": "module",
   "scripts": {
-    "dev": "esbuild src/main.ts --bundle --outfile=dist/bundle.js --sourcemap --watch --servedir=.",
+    "dev": "esbuild src/main.minigame.ts --bundle --format=iife --outfile=game.js --platform=browser --global-name=game --watch",
     "build": "esbuild src/main.minigame.ts --bundle --format=iife --outfile=game.js --platform=browser --global-name=game",
     "type-check": "tsc --noEmit"
   },

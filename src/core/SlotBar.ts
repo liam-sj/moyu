@@ -92,6 +92,7 @@ export class SlotBar {
       for (const s of toClear) s.clear()
       this.happiness += 10
       this.bus.emit<EliminatedEvent>('eliminated', { uids, happiness: this.happiness, count: 3 })
+      this._compact()
       this.bus.emit('slotChanged', {})
       return
     }
@@ -102,14 +103,49 @@ export class SlotBar {
       for (const s of toClear) s.clear()
       this.happiness += 10
       this.bus.emit<EliminatedEvent>('eliminated', { uids, happiness: this.happiness, count: 3 })
+      this._compact()
       this.bus.emit('slotChanged', {})
     }
   }
 
   addCard(card: BoardCard): boolean {
-    const emptyIdx = this.slots.findIndex(s => s === null)
-    if (emptyIdx === -1) { log(TAG, 'Slot full'); return false }
-    this.slots[emptyIdx] = {
+    // Group same-type cards: insert next to existing same-type cards
+    let targetIdx = -1
+    const sameType: number[] = []
+    for (let i = 0; i < this.maxSlots; i++) {
+      if (this.slots[i] && this.slots[i]!.cardId === card.cardId) sameType.push(i)
+    }
+
+    if (sameType.length > 0) {
+      // Target: right after the last same-type card
+      const insertAfter = sameType[sameType.length - 1]
+      targetIdx = insertAfter + 1
+
+      // If target is occupied or beyond max, shift cards right to make room
+      if (targetIdx < this.maxSlots && this.slots[targetIdx] !== null) {
+        // Find a null slot to the right to cascade shift
+        let nullIdx = -1
+        for (let i = targetIdx + 1; i < this.maxSlots; i++) {
+          if (this.slots[i] === null) { nullIdx = i; break }
+        }
+        if (nullIdx !== -1) {
+          // Shift [targetIdx..nullIdx-1] right by 1
+          for (let i = nullIdx; i > targetIdx; i--) {
+            this.slots[i] = this.slots[i - 1]
+          }
+          this.slots[targetIdx] = null
+        } else {
+          targetIdx = -1 // can't make room
+        }
+      }
+      if (targetIdx >= this.maxSlots) targetIdx = -1
+    }
+
+    // Fallback: leftmost empty
+    if (targetIdx === -1) targetIdx = this.slots.findIndex(s => s === null)
+    if (targetIdx === -1) { log(TAG, 'Slot full'); return false }
+
+    this.slots[targetIdx] = {
       uid: card.uid,
       type: card.type,
       config: card.config,
@@ -118,9 +154,26 @@ export class SlotBar {
       name: card.name,
       isRevealed: card.isRevealed,
     }
-    this.bus.emit('slotChanged', {})
-    this._checkMatch(card.cardId)
+    // Slot render is driven by fly animation completion, not here
     return true
+  }
+
+  /** Signal that the slot bar should re-render (called after fly animation lands) */
+  notifySlotChanged(): void {
+    this.bus.emit('slotChanged', {})
+  }
+
+  /** Check for matches after card has settled in the slot (called after fly animation) */
+  checkMatch(cardId: string): void {
+    this._checkMatch(cardId)
+  }
+
+  /** Compact cards to the left, removing gaps */
+  private _compact(): void {
+    const cards = this.slots.filter(s => s !== null) as SlotCard[]
+    for (let i = 0; i < this.maxSlots; i++) {
+      this.slots[i] = i < cards.length ? cards[i] : null
+    }
   }
 
   getVacantCount(): number {
@@ -145,6 +198,7 @@ export class SlotBar {
     }
     this.happiness += 10
     this.bus.emit<EliminatedEvent>('eliminated', { uids, happiness: this.happiness, count: indices.length })
+    this._compact()
   }
 
   clearMostCardType(): void {
@@ -192,7 +246,6 @@ export class SlotBar {
     let ejected = 0
     for (let i = 0; i < this.maxSlots && ejected < 3; i++) {
       if (this.slots[i]) {
-        // Find empty holding slot
         const hIdx = this.holdingSlots.findIndex(s => s === null)
         if (hIdx === -1) break
         this.holdingSlots[hIdx] = this.slots[i]
@@ -201,6 +254,7 @@ export class SlotBar {
       }
     }
     if (ejected > 0) {
+      this._compact()
       this._checkHoldingMatch()
     }
   }
@@ -238,6 +292,7 @@ export class SlotBar {
         for (const c of toClear) c.clear()
         this.happiness += 10
         this.bus.emit<EliminatedEvent>('eliminated', { uids, happiness: this.happiness, count: 3 })
+        this._compact()
         break
       }
     }

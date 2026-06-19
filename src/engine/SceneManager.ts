@@ -53,21 +53,17 @@ export class SceneManager {
     this.push(scene, params)
   }
 
-  /** Slide-replace: new scene slides in from right. Clean and simple. */
+  /** Slide-replace: old scene slides out left, new slides in from right. */
   slideReplace(scene: Scene, params?: unknown, duration = 50): void {
     if (this._transition) return
 
-    // Immediately clean up old scene
-    while (this.stack.length > 0) {
-      const top = this.stack.pop()!
-      top.onExit()
-      this.root.removeChild(top.container)
-      top._teardown()
-    }
-
+    const oldScene = this.current
     const screenW = (typeof wx !== 'undefined')
       ? wx.getSystemInfoSync().windowWidth
       : (document.documentElement.clientWidth || 375)
+
+    // Pause old scene but keep it alive
+    if (oldScene) oldScene.onPause()
 
     // Mount new scene off-screen right
     scene._mount(this, this.bus, this.eventManager)
@@ -77,7 +73,7 @@ export class SceneManager {
     scene.onEnter(params)
 
     this._transition = {
-      oldScene: null,
+      oldScene: oldScene || null,
       newScene: scene,
       elapsed: 0,
       duration,
@@ -86,7 +82,7 @@ export class SceneManager {
 
   update(dt: number): void {
     if (this._transition) {
-      const trans = this._transition  // capture ref so we can null it safely
+      const trans = this._transition
       trans.elapsed += dt
       const progress = Math.min(trans.elapsed / trans.duration, 1)
       const t = 1 - Math.pow(1 - progress, 3)
@@ -94,12 +90,24 @@ export class SceneManager {
         ? wx.getSystemInfoSync().windowWidth
         : (document.documentElement.clientWidth || 375)
 
+      // Old scene slides left, new scene slides in from right
+      if (trans.oldScene) {
+        trans.oldScene.container.x = Math.round(-screenW * t)
+      }
       trans.newScene.container.x = Math.round(screenW * (1 - t))
       trans.newScene.onUpdate(dt)
 
       if (progress >= 1) {
         trans.newScene.container.x = 0
         trans.newScene.onResume()
+        // Clean up old scene
+        if (trans.oldScene) {
+          trans.oldScene.onExit()
+          this.root.removeChild(trans.oldScene.container)
+          trans.oldScene._teardown()
+          const idx = this.stack.indexOf(trans.oldScene)
+          if (idx !== -1) this.stack.splice(idx, 1)
+        }
         this._transition = null
       }
       return
