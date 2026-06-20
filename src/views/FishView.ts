@@ -3,19 +3,23 @@ import * as PIXI from 'pixi.js-legacy'
 /** Single swimming fish with state-machine animation */
 export class FishView {
   readonly sprite: PIXI.Text
+  readonly container: PIXI.Container
   vx: number
   vy: number
   private phase: number
   state: string
   stateTimer: number
+  private _avatarSprite: PIXI.Sprite | null = null
 
   constructor(emoji: string, x: number, y: number, size: number) {
+    this.container = new PIXI.Container()
     this.sprite = new PIXI.Text(emoji, {
-      fontFamily: 'sans-serif', fontSize: size, align: 'center',
+      fontFamily: 'sans-serif', fontSize: Math.min(size * 1.5, size * 3.0), align: 'center',
     } as any)
     this.sprite.anchor.set(0.5)
-    this.sprite.x = x
-    this.sprite.y = y
+    this.sprite.x = 0; this.sprite.y = 0
+    this.container.addChild(this.sprite)
+    this.container.x = x; this.container.y = y
     this.sprite.alpha = 0.7 + Math.random() * 0.3
 
     this.vx = 0.15 * (Math.random() > 0.5 ? 1 : -1)
@@ -52,18 +56,18 @@ export class FishView {
     else if (this.state === 'dash') speedMul = 6
     else if (this.state === 'turn') speedMul = 0.3
 
-    this.sprite.x += this.vx * dt * speedMul
+    this.container.x += this.vx * dt * speedMul
     this.sprite.y += this.vy * dt * speedMul
 
     // Bounce + dash when hitting edge
-    const bounced = this.sprite.x < bounds.x + 18 || this.sprite.x > bounds.x + bounds.w - 24 ||
+    const bounced = this.container.x < bounds.x + 18 || this.container.x > bounds.x + bounds.w - 24 ||
                     this.sprite.y < bounds.y + 14 || this.sprite.y > bounds.y + bounds.h - 18
     if (bounced) {
       this.state = 'dash'
       this.stateTimer = 20 + Math.random() * 30
     }
-    if (this.sprite.x < bounds.x + 18) { this.vx = Math.abs(this.vx); this.sprite.x = bounds.x + 19 }
-    if (this.sprite.x > bounds.x + bounds.w - 24) { this.vx = -Math.abs(this.vx); this.sprite.x = bounds.x + bounds.w - 25 }
+    if (this.container.x < bounds.x + 18) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + 19 }
+    if (this.container.x > bounds.x + bounds.w - 24) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - 25 }
     if (this.sprite.y < bounds.y + 14) { this.vy = Math.abs(this.vy); this.sprite.y = bounds.y + 15 }
     if (this.sprite.y > bounds.y + bounds.h - 18) { this.vy = -Math.abs(this.vy); this.sprite.y = bounds.y + bounds.h - 19 }
 
@@ -77,5 +81,24 @@ export class FishView {
     this.sprite.rotation = wag
   }
 
-  destroy(): void { this.sprite.destroy() }
+  /** Show avatar above the fish */
+  setAvatar(url: string): void {
+    if (!url || this._avatarSprite) return
+    const img = wx.createImage()
+    img.onload = () => {
+      const canvas = wx.createCanvas(); const s = 16
+      canvas.width = s; canvas.height = s
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+      ctx.beginPath(); ctx.arc(s/2, s/2, s/2, 0, Math.PI * 2); ctx.clip()
+      ctx.drawImage(img, 0, 0, s, s)
+      const tex = PIXI.Texture.from(canvas)
+      this._avatarSprite = new PIXI.Sprite(tex)
+      this._avatarSprite.anchor.set(0.5)
+      this._avatarSprite.x = 0; this._avatarSprite.y = -this.sprite.height * 0.5 - 10
+      this.container.addChild(this._avatarSprite)
+    }
+    img.src = url
+  }
+
+  destroy(): void { this.container.destroy({ children: true }) }
 }

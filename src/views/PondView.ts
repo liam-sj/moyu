@@ -59,23 +59,28 @@ export class PondView {
   }
 
   /** Spawn fish with given count */
-  spawnFish(count: number): void {
+  spawnFish(count: number, contributors?: Array<{ url: string; count: number }>): void {
     this.clearFish()
     this.fishHitAreas = []
     const max = Math.min(count, 30)
     const emojis = ['🐟', '🐠', '🐡', '🦐']
+    const avatarList: string[] = []
+    if (contributors) {
+      for (const c of contributors) for (let j = 0; j < Math.min(c.count, max); j++) avatarList.push(c.url)
+    }
     for (let i = 0; i < max; i++) {
       const emoji = emojis[i % emojis.length]
       const f = new FishView(emoji,
         this._bounds.x + 10 + Math.random() * (this._bounds.w - 24),
-        this._bounds.y + 4 + Math.random() * (this._bounds.h - 14),
+        this._bounds.y + 14 + Math.random() * (this._bounds.h - 28),
         18 + Math.random() * 12
       )
+      if (i < avatarList.length) f.setAvatar(avatarList[i])
       this._fish.push(f)
-      this.container.addChild(f.sprite)
+      this.container.addChild(f.container)
       // Per-fish tap: dash away (coordinates relative to pond container)
       this.fishHitAreas.push({
-        rect: { x: f.sprite.x, y: f.sprite.y, w: 1, h: 1 },
+        rect: { x: f.container.x, y: f.container.y, w: 1, h: 1 },
         cb: () => { f.state = 'dash'; f.stateTimer = 30 + Math.random() * 40 }
       })
     }
@@ -89,7 +94,7 @@ export class PondView {
       const cb = this.fishHitAreas[i]?.cb
       if (cb) {
         result.push({
-          rect: { x: ox + f.sprite.x - 18, y: oy + f.sprite.y - 18, w: 36, h: 36 },
+          rect: { x: ox + f.container.x - 18, y: oy + f.container.y - 18, w: 36, h: 36 },
           cb
         })
       }
@@ -100,8 +105,8 @@ export class PondView {
   /** Dash fish near a point (local coordinates, radius in px) */
   dashNear(lx: number, ly: number, radius: number): void {
     for (const f of this._fish) {
-      const dx = f.sprite.x - lx
-      const dy = f.sprite.y - ly
+      const dx = f.container.x - lx
+      const dy = f.container.y - ly
       if (Math.sqrt(dx * dx + dy * dy) < radius) {
         f.state = 'dash'
         f.stateTimer = 30 + Math.random() * 40

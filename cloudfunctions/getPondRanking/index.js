@@ -2,6 +2,7 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const POND_IDS = ['moyutang','xianyutang','jinlitang','hetuntang','moyutang2','haimatang','feiyutang','zhangyutang','bimuyutang','pangxietang','jianyutang','haituntang']
 
 exports.main = async (event, context) => {
   try {
@@ -61,12 +62,27 @@ exports.main = async (event, context) => {
       fishEmoji: FISH_EMOJIS[s.pondId] || '🐟'
     }))
 
+    // Get contributor avatars per pond
+    const pondIds = POND_IDS
+    const contributors: Record<string, Array<{ url: string; count: number }>> = {}
+    for (const pid of pondIds) {
+      const topPlayers = await db.collection('player_ponds')
+        .where({ pondId: pid, todayContribution: _.gt(0) })
+        .orderBy('todayContribution', 'desc')
+        .limit(5)
+        .get()
+      contributors[pid] = topPlayers.data
+        .filter((p: any) => p.avatarUrl)
+        .map((p: any) => ({ url: p.avatarUrl, count: p.todayContribution }))
+    }
+
     return {
       ok: true,
       fatPondRank,
       perCapitaRank,
       streakRank,
-      myPond
+      myPond,
+      contributors
     }
   } catch (err) {
     console.error('[getPondRanking]', err)

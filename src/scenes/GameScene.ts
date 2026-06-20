@@ -1154,20 +1154,37 @@ export class GameScene extends Scene {
         wx.setStorageSync('cleared_level2', true)
       }
 
-      // Report contribution
+      // Report contribution with avatar
       const cachedPond = getCachedPond()
       if (cachedPond) {
-        wx.cloud.callFunction({
-          name: 'contribute',
-          data: {}
-        }).then((res: any) => {
-          if (res.result && res.result.ok) {
-            const d = res.result
-            setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
-            // Show brief feedback
-            wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
-          }
-        }).catch(() => {})
+        const doContribute = (avatarUrl: string) => {
+          wx.cloud.callFunction({
+            name: 'contribute',
+            data: { avatarUrl }
+          }).then((res: any) => {
+            if (res.result && res.result.ok) {
+              const d = res.result
+              setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
+              wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
+            }
+          }).catch(() => {})
+        }
+        // Try to get avatar, fall back to empty string
+        try {
+          wx.getSetting({
+            success: (sr: any) => {
+              if (sr.authSetting['scope.userInfo']) {
+                wx.getUserInfo({
+                  success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
+                  fail: () => doContribute('')
+                })
+              } else {
+                doContribute('')
+              }
+            },
+            fail: () => doContribute('')
+          })
+        } catch { doContribute('') }
       }
 
       // Check achievements

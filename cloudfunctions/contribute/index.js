@@ -12,14 +12,15 @@ exports.main = async (event, context) => {
     const p = player.data[0]
     const pondId = p.pondId
     const date = todayStr()
+    const avatarUrl = event.avatarUrl || ''
 
     // Increment player contribution
-    await db.collection('player_ponds').where({ openId }).update({
-      data: {
-        todayContribution: _.inc(1),
-        [`totalContribution.${pondId}`]: _.inc(1)
-      }
-    })
+    const updates: any = {
+      todayContribution: _.inc(1),
+      [`totalContribution.${pondId}`]: _.inc(1)
+    }
+    if (avatarUrl) updates.avatarUrl = avatarUrl
+    await db.collection('player_ponds').where({ openId }).update({ data: updates })
 
     // Increment pond daily clears
     const pond = await db.collection('pond_stats').where({ pondId, date }).get()

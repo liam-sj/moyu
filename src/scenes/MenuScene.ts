@@ -164,7 +164,8 @@ export class MenuScene extends Scene {
       for (let i = 0; i < this._pondViews.length; i++) {
         const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)
         const count = info ? Math.max(3, Math.round(info.dailyClears / 3)) : 5
-        this._pondViews[i].spawnFish(count)
+        const contribs = data.contributors ? data.contributors[PONDS[i].id] : undefined
+        this._pondViews[i].spawnFish(count, contribs)
         this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '···')
       }
     } catch {}
