@@ -72,7 +72,7 @@ export class MenuScene extends Scene {
     }
 
     // ── Scrollable 12 Fish Ponds (single column, 3x height) ──
-    const pondW = w - 40; const pondH = 126; const gap = 14
+    const pondW = w - 60; const pondH = 160; const gap = 24
     const listStartY = barY + 30
     const listTotalH = PONDS.length * (pondH + gap)
     this._scrollMax = Math.max(0, listStartY + listTotalH + 80 - h)
@@ -167,7 +167,7 @@ export class MenuScene extends Scene {
 
   private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number): void {
     const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
-    const actualCount = Math.min(count, 15) // cap at 15 fish
+    const actualCount = Math.min(count, 20) // cap at 20 fish
     for (let f = 0; f < actualCount; f++) {
       const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
         fontFamily: 'sans-serif', fontSize: 18 + Math.random() * 12, align: 'center',
