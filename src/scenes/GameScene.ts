@@ -1169,21 +1169,14 @@ export class GameScene extends Scene {
             }
           }).catch(() => {})
         }
-        // Try to get avatar, fall back to empty string
+        // Request user info authorization for avatar
         try {
-          wx.getSetting({
-            success: (sr: any) => {
-              if (sr.authSetting['scope.userInfo']) {
-                wx.getUserInfo({
-                  success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
-                  fail: () => doContribute('')
-                })
-              } else {
-                doContribute('')
-              }
-            },
-            fail: () => doContribute('')
-          })
+          wx.authorize({ scope: 'scope.userInfo', success: () => {
+            wx.getUserInfo({
+              success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
+              fail: () => doContribute('')
+            })
+          }, fail: () => doContribute('') })
         } catch { doContribute('') }
       }
 
