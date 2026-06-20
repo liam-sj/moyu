@@ -112,29 +112,22 @@ export class MenuScene extends Scene {
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      // Try getUserProfile first (shows dialog), fallback to button
+      // Auth button — always show until avatar is stored
       if (typeof wx !== 'undefined' && !wx.getStorageSync('user_avatar')) {
-        setTimeout(() => {
-          if (wx.getUserProfile) {
-            wx.getUserProfile({
-              desc: '用于展示鱼塘贡献头像',
-              success: (res: any) => {
-                wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
-                console.log('[MenuScene] getUserProfile成功')
-              }
-            })
-          } else {
-            // Fallback: native button
-            const btnW = 140; const btnH = 36
-            const btn = wx.createUserInfoButton({
-              type: 'text', text: '👤 授权获取头像昵称',
-              style: { left: (w - btnW) / 2, top: 5, width: btnW, height: btnH, fontSize: 13, lineHeight: btnH, backgroundColor: '#E67E22', color: '#FFFFFF', borderRadius: 18, textAlign: 'center' }
-            })
-            btn.onTap((res: any) => {
-              if (res.userInfo?.avatarUrl) { wx.setStorageSync('user_avatar', res.userInfo.avatarUrl); btn.destroy() }
-            })
+        // Native button (works in game canvas)
+        const btnW = 160; const btnH = 36
+        const btn = wx.createUserInfoButton({
+          type: 'text',
+          text: '👤 点击授权头像',
+          style: { left: (w - btnW) / 2, top: 0, width: btnW, height: btnH, fontSize: 14, lineHeight: btnH, backgroundColor: '#FF6B35', color: '#FFFFFF', borderRadius: 0, textAlign: 'center' }
+        })
+        btn.onTap((res: any) => {
+          console.log('[MenuScene] UserInfoButton tapped', JSON.stringify(res))
+          if (res.userInfo?.avatarUrl) {
+            wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
+            btn.destroy()
           }
-        }, 500)
+        })
       }
       const c = getCachedPond()
       if (!c) {
