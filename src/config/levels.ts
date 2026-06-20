@@ -21,16 +21,16 @@ export const LEVELS: Record<string, LevelConfig> = {
   level2: {
     id: 'level2',
     name: '第二关·地狱',
-    normalCardTypes: 4,        // DEV: 仅4种卡
+    normalCardTypes: 3,        // DEV: 仅3种卡
     funcCardCount: 0,          // DEV: 无功能卡
     funcTypes: [],
-    layers: 5,                 // DEV: 5层
-    gridRows: 5,
-    gridCols: 6,
-    totalCards: 66,
-    steps: 150,                // DEV: 超充裕
-    slotLimit: 8,
-    layerCards: [24, 18, 12, 8, 4],
+    layers: 2,                 // DEV: 仅2层
+    gridRows: 4,
+    gridCols: 4,
+    totalCards: 24,
+    steps: 200,                // DEV: 无限步数
+    slotLimit: 10,             // DEV: 超大槽
+    layerCards: [12, 6],
     clusterLayers: [5, 6, 7, 8, 9],  // 顶层5层：3簇聚集，几乎重叠
     gapRatio: 0.08,
   },
