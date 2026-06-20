@@ -85,7 +85,7 @@ export class MenuScene extends Scene {
       const px = (w - pondW) / 2
       const py = gridY + i * (pondH + gap)
       const pv = new PondView(PONDS[i], i, px, py, pondW, pondH)
-      pv.spawnFish(5)
+      // Only show real data — no placeholder fish
       this._scrollCtn.addChild(pv.container)
       this._pondViews.push(pv)
 
