@@ -84,9 +84,10 @@ export class MenuScene extends Scene {
       this._scrollCtn.addChild(pv.container)
       this._pondViews.push(pv)
 
+      // Title area → opens pond detail
       this._pondHitAreas.push({
-        rect: { x: px, y: py, w: pondW, h: pondH },
-        cb: () => { pv.dashAll(); const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(PONDS[i].id)) }
+        rect: { x: px, y: py, w: pondW, h: 22 },
+        cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(PONDS[i].id)) }
       })
     }
 
