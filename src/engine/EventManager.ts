@@ -68,7 +68,7 @@ export class EventManager {
 
     for (let i = 0; i < sorted.length; i++) {
       if (this._contains(pos, sorted[i])) {
-        sorted[i].callback()
+        try { sorted[i].callback() } catch (e) { console.warn('[EventManager] callback error', e) }
         return
       }
     }
