@@ -96,8 +96,23 @@ export class MenuScene extends Scene {
     // Load real counts
     this._loadRealCounts()
 
-    // Load user avatar and show on ponds
-    this._loadAvatar()
+    // Load user avatar for contributor display
+    if (typeof wx !== 'undefined') {
+      try {
+        wx.getSetting({
+          success: (res: any) => {
+            if (res.authSetting['scope.userInfo']) {
+              wx.getUserInfo({
+                success: (info: any) => {
+                  const url = info.userInfo.avatarUrl
+                  for (const pv of this._pondViews) pv.showContributors([{ url, count: 1 }])
+                }
+              })
+            }
+          }
+        })
+      } catch {}
+    }
 
     // Button
     const btnW = 200; const btnH = 44
@@ -139,24 +154,6 @@ export class MenuScene extends Scene {
         })
       }
     }
-  }
-
-  private _loadAvatar(): void {
-    if (typeof wx === 'undefined') return
-    try {
-      wx.getSetting({
-        success: (res: any) => {
-          if (res.authSetting['scope.userInfo']) {
-            wx.getUserInfo({
-              success: (info: any) => {
-                const url = info.userInfo.avatarUrl
-                for (const pv of this._pondViews) pv.setAvatar(url)
-              }
-            })
-          }
-        }
-      })
-    } catch {}
   }
 
   private async _loadRealCounts(): Promise<void> {

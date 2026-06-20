@@ -8,8 +8,7 @@ export class PondView {
   private _bounds: { x: number; y: number; w: number; h: number }
   /** Register per-fish hit areas for tap-to-dash */
   fishHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _avatarSprite: PIXI.Sprite | null = null
-  private _avatarUrl: string = ''
+  private _avatarSprites: PIXI.Container[] = []
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
     this._bounds = { x: 8, y: 18, w: w - 20, h: h - 38 }
@@ -136,25 +135,37 @@ export class PondView {
     if (b) b.text = text
   }
 
-  /** Load and display user avatar above fish area */
-  setAvatar(url: string): void {
-    if (!url || url === this._avatarUrl) return
-    this._avatarUrl = url
-    if (this._avatarSprite) { this.container.removeChild(this._avatarSprite); this._avatarSprite.destroy() }
-    const img = wx.createImage()
-    img.onload = () => {
-      const canvas = wx.createCanvas()
-      canvas.width = 24; canvas.height = 24
-      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
-      ctx.beginPath(); ctx.arc(12, 12, 12, 0, Math.PI * 2); ctx.clip()
-      ctx.drawImage(img, 0, 0, 24, 24)
-      const tex = PIXI.Texture.from(canvas)
-      this._avatarSprite = new PIXI.Sprite(tex)
-      this._avatarSprite.x = 36; this._avatarSprite.y = 18
-      this._avatarSprite.width = 20; this._avatarSprite.height = 20
-      this.container.addChild(this._avatarSprite)
+  /** Show contributor avatars above fish area */
+  showContributors(contributors: Array<{ url: string; count: number }>): void {
+    for (const s of this._avatarSprites) { this.container.removeChild(s); s.destroy({ children: true }) }
+    this._avatarSprites = []
+    const max = Math.min(contributors.length, 8)
+    const startX = 4; const y = 18; const size = 16
+    for (let i = 0; i < max; i++) {
+      const c = contributors[i]
+      const ctn = new PIXI.Container()
+      const img = wx.createImage()
+      img.onload = () => {
+        const canvas = wx.createCanvas(); canvas.width = size; canvas.height = size
+        const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+        ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2); ctx.clip()
+        ctx.drawImage(img, 0, 0, size, size)
+        const tex = PIXI.Texture.from(canvas)
+        const sp = new PIXI.Sprite(tex); sp.width = size; sp.height = size
+        ctn.addChild(sp)
+        if (c.count > 1) {
+          const badge = new PIXI.Text(`×${c.count}`, {
+            fontFamily: 'sans-serif', fontSize: 8, fill: '#F1C40F', fontWeight: 'bold',
+          } as any)
+          badge.x = size - 2; badge.y = size - 2
+          ctn.addChild(badge)
+        }
+      }
+      img.src = c.url
+      ctn.x = startX + i * (size + 4); ctn.y = y
+      this.container.addChild(ctn)
+      this._avatarSprites.push(ctn)
     }
-    img.src = url
   }
 
   destroy(): void {
