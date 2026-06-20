@@ -2,8 +2,9 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 
-exports.main = async (event) => {
-  const { action, fishId, pondId, openId } = event
+exports.main = async (event, context) => {
+  const { action, fishId, pondId } = event
+  const openId = cloud.getWXContext().OPENID
   const _ = db.command
 
   if (action === 'select') {

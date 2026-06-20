@@ -2,14 +2,14 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 
-exports.main = async (event) => {
+exports.main = async (event, context) => {
   const date = todayStr()
   const ponds = await db.collection('pond_stats').where({ date }).orderBy('dailyClears', 'desc').get()
 
-  // Get player's rank if openId provided
+  const openId = cloud.getWXContext().OPENID
   let myPond = null
-  if (event.openId) {
-    const player = await db.collection('player_ponds').where({ openId: event.openId }).get()
+  if (openId) {
+    const player = await db.collection('player_ponds').where({ openId }).get()
     if (player.data.length > 0) {
       const p = player.data[0]
       const rank = ponds.data.findIndex(r => r.pondId === p.pondId) + 1

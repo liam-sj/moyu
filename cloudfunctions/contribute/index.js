@@ -3,8 +3,8 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 
-exports.main = async (event) => {
-  const { openId } = event
+exports.main = async (event, context) => {
+  const openId = cloud.getWXContext().OPENID
   const player = await db.collection('player_ponds').where({ openId }).get()
   if (player.data.length === 0) return { ok: false, reason: 'no_pond' }
 
