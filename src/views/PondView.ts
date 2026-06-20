@@ -6,6 +6,8 @@ export class PondView {
   readonly container = new PIXI.Container()
   private _fish: FishView[] = []
   private _bounds: { x: number; y: number; w: number; h: number }
+  /** Register per-fish hit areas for tap-to-dash */
+  fishHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
     this._bounds = { x: 8, y: 18, w: w - 20, h: h - 38 }
@@ -58,6 +60,7 @@ export class PondView {
   /** Spawn fish with given count */
   spawnFish(count: number): void {
     this.clearFish()
+    this.fishHitAreas = []
     const max = Math.min(count, 30)
     const emojis = ['🐟', '🐠', '🐡', '🦐']
     for (let i = 0; i < max; i++) {
@@ -69,6 +72,20 @@ export class PondView {
       )
       this._fish.push(f)
       this.container.addChild(f.sprite)
+      // Per-fish tap: dash away
+      this.fishHitAreas.push({
+        rect: { x: f.sprite.x - 15, y: f.sprite.y - 15, w: 30, h: 30 },
+        cb: () => { f.state = 'dash'; f.stateTimer = 30 + Math.random() * 40 }
+      })
+    }
+  }
+
+  /** Update per-fish hit area positions (called each frame) */
+  updateFishHitAreas(): void {
+    for (let i = 0; i < this._fish.length; i++) {
+      const f = this._fish[i]
+      const ha = this.fishHitAreas[i]
+      if (ha) { ha.rect.x = f.sprite.x - 15; ha.rect.y = f.sprite.y - 15 }
     }
   }
 

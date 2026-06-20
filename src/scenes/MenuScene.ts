@@ -145,6 +145,10 @@ export class MenuScene extends Scene {
     if (this._startHitArea && this._startCallback) this.registerHitArea(this._startHitArea, this._startCallback, 10)
     if (this._shareHitArea && this._shareCallback) this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
-    for (const pv of this._pondViews) pv.updateFish(dt)
+    for (const pv of this._pondViews) {
+      pv.updateFish(dt)
+      pv.updateFishHitAreas()
+      for (const item of pv.fishHitAreas) this.registerHitArea(item.rect, item.cb, 15)
+    }
   }
 }

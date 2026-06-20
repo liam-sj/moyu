@@ -6,8 +6,8 @@ export class FishView {
   vx: number
   vy: number
   private phase: number
-  private state: string
-  private stateTimer: number
+  state: string
+  stateTimer: number
 
   constructor(emoji: string, x: number, y: number, size: number) {
     this.sprite = new PIXI.Text(emoji, {
