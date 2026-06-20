@@ -10,7 +10,7 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; waveSpeed: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
+  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; baseY: number; waveSpeed: number; waveAmp: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
   private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
   private _scrollCtn: PIXI.Container | null = null
@@ -180,7 +180,9 @@ export class MenuScene extends Scene {
       this._pondFish.push({
         sprite,
         vx: (0.15 + Math.random() * 0.3) * (Math.random() > 0.5 ? 1 : -1),
+        baseY: sprite.y,
         waveSpeed: 0.003 + Math.random() * 0.005,
+        waveAmp: 6 + Math.random() * 12,
         phase: Math.random() * Math.PI * 2,
         pondX: px, pondY: py, pondW: pw, pondH: ph,
       })
@@ -222,15 +224,15 @@ export class MenuScene extends Scene {
     const now = Date.now()
     for (const fish of this._pondFish) {
       fish.sprite.x += fish.vx * dt
+      // Sine wave vertical undulation
+      fish.sprite.y = fish.baseY + Math.sin(now * fish.waveSpeed + fish.phase) * fish.waveAmp
       // Bounce off horizontal edges
       if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
-      // Body wiggle + tail wag
-      const wiggle = 1 + Math.sin(now * fish.waveSpeed * 3 + fish.phase) * 0.08
-      const wag = Math.sin(now * fish.waveSpeed * 2.5 + fish.phase + 1) * 0.06
+      // Keep within vertical bounds
+      if (fish.sprite.y < fish.pondY + 14) { fish.sprite.y = fish.pondY + 14; fish.baseY = fish.pondY + 14 + fish.waveAmp }
+      if (fish.sprite.y > fish.pondY + fish.pondH - 18) { fish.sprite.y = fish.pondY + fish.pondH - 18; fish.baseY = fish.pondY + fish.pondH - 18 - fish.waveAmp }
       const dir = fish.vx > 0 ? 1 : -1
-      fish.sprite.scale.x = dir * wiggle
-      fish.sprite.scale.y = 1 / wiggle
-      fish.sprite.rotation = wag
+      fish.sprite.scale.x = dir
     }
   }
 
