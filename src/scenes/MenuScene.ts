@@ -66,15 +66,14 @@ export class MenuScene extends Scene {
       this.container.addChild(prompt)
     }
 
-    // ── 12 Fish Ponds (3 columns × 4 rows grid) ──
-    const cols = 3; const pondW = Math.floor((w - 32) / cols); const pondH = 95
-    const gridY = barY + 40; const gap = 6
+    // ── 12 Fish Ponds (single column) ──
+    const pondW = w - 20; const pondH = 38; const gap = 1
+    const gridY = barY + 40
 
     for (let i = 0; i < PONDS.length; i++) {
       const pond = PONDS[i]
-      const col = i % cols; const row = Math.floor(i / cols)
-      const px = 8 + col * pondW + (col > 0 ? gap : 0)
-      const py = gridY + row * (pondH + gap)
+      const px = 10
+      const py = gridY + i * (pondH + gap)
 
       // Pond background (water color)
       const pondBg = new PIXI.Graphics()
@@ -114,7 +113,7 @@ export class MenuScene extends Scene {
 
     // Start button
     const btnW = 200, btnH = 44
-    const btnY = gridY + 4 * (pondH + gap) + 12
+    const btnY = gridY + 12 * (pondH + gap) + 12
     const btn = new Button(
       Math.floor((w - btnW) / 2), Math.floor(btnY), btnW, btnH,
       '开始摸鱼',
@@ -145,7 +144,7 @@ export class MenuScene extends Scene {
     const actualCount = Math.min(count, 10) // cap at 10 fish per pond
     for (let f = 0; f < actualCount; f++) {
       const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
-        fontFamily: 'sans-serif', fontSize: 12 + Math.random() * 8, align: 'center',
+        fontFamily: 'sans-serif', fontSize: 18 + Math.random() * 12, align: 'center',
       } as any)
       sprite.anchor.set(0.5)
       sprite.x = px + 8 + Math.random() * (pw - 20)
