@@ -106,7 +106,7 @@ export class MenuScene extends Scene {
 
     // Button
     const btnW = 200; const btnH = 44
-    const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h - 60), btnW, btnH, '开始摸鱼', {
+    const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h - 60), btnW, btnH, '加入鱼塘', {
       bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true,
     })
     this.container.addChild(btn.container)
