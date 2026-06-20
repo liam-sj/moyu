@@ -3,11 +3,17 @@ import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { createCardImage, onAtlasReady } from '../views/CardView'
 import { getCachedPond, getPondById } from '../config/ponds'
+import { generatePoster } from '../utils/SharePoster'
 
 export class MenuScene extends Scene {
   private _startHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _startCallback: (() => void) | null = null
   private _rankingContainer: PIXI.Container | null = null
+  private _rankingTab: string = 'fat'
+  private _rankingData: any = null
+  private _tabHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
+  private _shareCallback: (() => void) | null = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -60,6 +66,20 @@ export class MenuScene extends Scene {
       } as any)
       sloganTxt.x = 28; sloganTxt.y = pondCardY + 38
       this.container.addChild(sloganTxt)
+
+      // Share button
+      const shareBg = new PIXI.Graphics()
+      shareBg.beginFill(0x7F8C8D, 0.7)
+      shareBg.drawRoundedRect(w - 72, pondCardY + 10, 44, 22, 6)
+      shareBg.endFill()
+      this.container.addChild(shareBg)
+      const shareTxt = new PIXI.Text('📤', {
+        fontFamily: 'sans-serif', fontSize: 14,
+      } as any)
+      shareTxt.anchor.set(0.5); shareTxt.x = w - 50; shareTxt.y = pondCardY + 21
+      this.container.addChild(shareTxt)
+      this._shareHitArea = { x: w - 72, y: pondCardY + 10, w: 44, h: 22 }
+      this._shareCallback = () => generatePoster()
     } else {
       // No pond yet: show prompt
       const promptBg = new PIXI.Graphics()
@@ -75,9 +95,9 @@ export class MenuScene extends Scene {
       this.container.addChild(promptTxt)
     }
 
-    // ── Ranking Bar (simple local cache version) ──
+    // ── Tabbed Ranking (replaces old ranking bar) ──
     const rankingY = pondCardY + pondCardH + 12
-    this._loadRankingBar(w, rankingY)
+    this._renderRankingTabs(w, rankingY)
 
     // Show actual card sprites in 2 rows (4+3) — may re-render when atlas loads
     const cardList = ['phone', 'toilet', 'sleep', 'snack', 'shop', 'gossip', 'game']
@@ -131,48 +151,98 @@ export class MenuScene extends Scene {
     this.container.addChild(tip)
   }
 
-  private async _loadRankingBar(w: number, y: number): Promise<void> {
-    if (this._rankingContainer) {
-      this.container.removeChild(this._rankingContainer)
-      this._rankingContainer.destroy({ children: true })
+  private _renderRankingTabs(w: number, y: number): void {
+    const tabs = [
+      { key: 'fat', label: '🏆 今日最肥' },
+      { key: 'perCapita', label: '👑 人均摸鱼王' },
+      { key: 'streak', label: '🔥 连续霸榜' }
+    ]
+    const tabW = (w - 32) / 3; const tabH = 32
+    const tabY = y
+
+    const tabContainer = new PIXI.Container()
+    this.container.addChild(tabContainer)
+
+    for (let i = 0; i < tabs.length; i++) {
+      const t = tabs[i]
+      const tx = 16 + i * tabW
+      const isActive = this._rankingTab === t.key
+
+      const bg = new PIXI.Graphics()
+      bg.beginFill(isActive ? 0x5C4033 : 0x3A2A20, 0.9)
+      bg.drawRoundedRect(tx, tabY, tabW - 4, tabH, 6)
+      bg.endFill()
+      if (isActive) bg.lineStyle(1, 0xF39C12, 0.6)
+      bg.drawRoundedRect(tx, tabY, tabW - 4, tabH, 6)
+      tabContainer.addChild(bg)
+
+      const txt = new PIXI.Text(t.label, {
+        fontFamily: 'sans-serif', fontSize: 10, fill: isActive ? '#F39C12' : '#8B7355',
+      } as any)
+      txt.anchor.set(0.5); txt.x = tx + (tabW - 4) / 2; txt.y = tabY + tabH / 2
+      tabContainer.addChild(txt)
+
+      // Register hit area (re-registered in onUpdate)
+      this._tabHitAreas = this._tabHitAreas || []
+      this._tabHitAreas.push({
+        rect: { x: tx, y: tabY, w: tabW - 4, h: tabH },
+        cb: () => { this._rankingTab = t.key; this._loadRankings(w, tabY + tabH + 8) }
+      })
     }
+
+    this._loadRankings(w, tabY + tabH + 8)
+  }
+
+  private async _loadRankings(w: number, y: number): Promise<void> {
+    try {
+      const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
+      this._rankingData = (res as any).result
+    } catch { return }
+
+    if (!this._rankingData?.ok) return
+    const data = this._rankingData
+    let list: any[]
+
+    if (this._rankingTab === 'fat') list = data.fatPondRank
+    else if (this._rankingTab === 'perCapita') list = data.perCapitaRank
+    else list = data.streakRank
+
+    if (!list || list.length === 0) return
+
+    // Clear old ranking display
+    if (this._rankingContainer) { this.container.removeChild(this._rankingContainer); this._rankingContainer.destroy({ children: true }) }
     const ctn = new PIXI.Container()
     this._rankingContainer = ctn
     this.container.addChild(ctn)
 
-    try {
-      const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-      const data = (res as any).result
-      if (!data.ok || !data.rankings) return
-      const top = data.rankings.slice(0, 5)
-      const startX = 16; const barY = y
-      const medals = ['🥇', '🥈', '🥉']
+    const medals = ['🥇', '🥈', '🥉']
+    for (let i = 0; i < Math.min(list.length, 12); i++) {
+      const item = list[i]
+      const pond = getPondById(item.pondId)
+      const ry = y + i * 22
+      const rank = item.rank || (i + 1)
 
-      const label = new PIXI.Text('🏆 今日最肥鱼塘', {
-        fontFamily: 'sans-serif', fontSize: 11, fill: '#F39C12', fontWeight: 'bold',
-      } as any)
-      label.x = startX; label.y = barY
-      ctn.addChild(label)
-
-      let rx = startX + 110
-      for (let i = 0; i < top.length; i++) {
-        const pond = getPondById(top[i].pondId)
-        if (!pond) continue
-        const txt = new PIXI.Text(`${medals[i] || ''}${pond.emoji}${top[i].dailyClears}`, {
-          fontFamily: 'sans-serif', fontSize: 11, fill: '#BDC3C7',
-        } as any)
-        txt.x = rx; txt.y = barY
-        ctn.addChild(txt)
-        rx += txt.width + 16
-      }
-    } catch (e) {
-      // Cloud call failed — skip ranking
+      const line = new PIXI.Text(
+        `${rank <= 3 ? medals[rank - 1] : rank + ' '} ${pond?.emoji || '🐟'} ${pond?.name || item.pondId}  ` +
+        (this._rankingTab === 'fat' ? `${item.dailyClears}条` :
+         this._rankingTab === 'perCapita' ? `${item.perCapita}人均` :
+         `${item.streakDays}天`),
+        { fontFamily: 'sans-serif', fontSize: 11, fill: rank <= 3 ? '#F1C40F' : '#A09080' }
+      ) as any
+      line.x = 20; line.y = ry
+      ctn.addChild(line)
     }
   }
 
   onUpdate(_dt: number): void {
     if (this._startHitArea && this._startCallback) {
       this.registerHitArea(this._startHitArea, this._startCallback, 10)
+    }
+    if (this._tabHitAreas) {
+      for (const item of this._tabHitAreas) this.registerHitArea(item.rect, item.cb, 12)
+    }
+    if (this._shareHitArea && this._shareCallback) {
+      this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
     }
   }
 }

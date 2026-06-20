@@ -1170,6 +1170,15 @@ export class GameScene extends Scene {
         }).catch(() => {})
       }
 
+      // Check achievements
+      wx.cloud.callFunction({ name: 'checkAchievements', data: {} }).then((res: any) => {
+        if (res.result?.ok && res.result.newAchievements?.length > 0) {
+          for (const ach of res.result.newAchievements) {
+            wx.showToast({ title: `${ach.emoji} 获得称号：${ach.name}！`, icon: 'none', duration: 3000 })
+          }
+        }
+      }).catch(() => {})
+
       // Level 1 auto-advances to Level 2 on win
       if (result.levelId === 'level1') {
         this._pendingTransition = { levelId: 'level2' }
