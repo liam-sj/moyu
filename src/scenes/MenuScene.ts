@@ -158,12 +158,8 @@ export class MenuScene extends Scene {
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
-      // Water area tap → dash nearby fish (use container global position)
       const gp = pv.container.getGlobalPosition()
-      const pw = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowWidth : 375) - 60
-      this.registerHitArea({ x: gp.x + 8, y: gp.y + 22, w: pw - 16, h: 210 - 26 }, () => {
-        pv.dashNear(this._lastTouchX - gp.x, this._lastTouchY - gp.y, 60)
-      }, 15)
+      for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 15)
     }
   }
 }
