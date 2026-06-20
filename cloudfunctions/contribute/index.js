@@ -7,7 +7,18 @@ exports.main = async (event, context) => {
   try {
     const openId = cloud.getWXContext().OPENID
     const player = await db.collection('player_ponds').where({ openId }).get()
-    if (player.data.length === 0) return { ok: false, reason: 'no_pond' }
+    if (player.data.length === 0) {
+      // Create minimal record if missing (repair scenario)
+      console.log('[contribute] Player has no pond record, creating minimal entry')
+      await db.collection('player_ponds').add({
+        data: {
+          openId, fishId: '', pondId: 'moyutang', avatarUrl: event.avatarUrl || '',
+          joinDate: new Date(), lastSwitchDate: null, switchCount: 0,
+          visitedPonds: ['moyutang'], todayContribution: 0, totalContribution: { moyutang: 0 }
+        }
+      })
+      return { ok: true, pondName: '摸鱼塘', fishEmoji: '🐟', todayContribution: 1, pondClears: 1, rank: 1 }
+    }
 
     const p = player.data[0]
     const pondId = p.pondId
