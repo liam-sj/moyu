@@ -31,19 +31,19 @@ export class MenuScene extends Scene {
       fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold',
       fill: '#F39C12', align: 'center',
     } as any)
-    title.anchor.set(0.5); title.x = w / 2; title.y = h * 0.04
+    title.anchor.set(0.5); title.x = w / 2; title.y = 18
     this.container.addChild(title)
 
     const sub = new PIXI.Text('职场摸鱼三消挑战', {
-      fontFamily: 'sans-serif', fontSize: 12, fill: '#7FB3D8', align: 'center',
+      fontFamily: 'sans-serif', fontSize: 11, fill: '#7FB3D8', align: 'center',
     } as any)
-    sub.anchor.set(0.5); sub.x = w / 2; sub.y = h * 0.09
+    sub.anchor.set(0.5); sub.x = w / 2; sub.y = 44
     this.container.addChild(sub)
 
     // ── My Pond bar ──
     const cachedPond = getCachedPond()
     const pondCfg = cachedPond ? getPondById(cachedPond.pondId) : null
-    const barY = h * 0.13
+    const barY = 60
 
     if (pondCfg && cachedPond) {
       const bar = new PIXI.Graphics()
@@ -67,7 +67,7 @@ export class MenuScene extends Scene {
     }
 
     // ── 12 Fish Ponds (single column) ──
-    const pondW = w - 20; const pondH = 38; const gap = 1
+    const pondW = w - 20; const pondH = 42; const gap = 4
     const gridY = barY + 40
 
     for (let i = 0; i < PONDS.length; i++) {
