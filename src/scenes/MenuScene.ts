@@ -222,8 +222,8 @@ export class MenuScene extends Scene {
       fish.sprite.x += fish.vx * dt
       fish.sprite.y += fish.vy * dt
       // Bounce off pond edges
-      if (fish.sprite.x < fish.pondX + 6 || fish.sprite.x > fish.pondX + fish.pondW - 10) fish.vx *= -1
-      if (fish.sprite.y < fish.pondY + 4 || fish.sprite.y > fish.pondY + fish.pondH - 6) fish.vy *= -1
+      if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
+      if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
       // Flip sprite based on direction
       fish.sprite.scale.x = fish.vx > 0 ? 1 : -1
     }
