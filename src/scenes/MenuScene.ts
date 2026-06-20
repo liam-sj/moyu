@@ -72,7 +72,7 @@ export class MenuScene extends Scene {
     }
 
     // ── Scrollable 12 Fish Ponds (single column, 3x height) ──
-    const pondW = w - 20; const pondH = 126; const gap = 6
+    const pondW = w - 40; const pondH = 126; const gap = 14
     const listStartY = barY + 30
     const listTotalH = PONDS.length * (pondH + gap)
     this._scrollMax = Math.max(0, listStartY + listTotalH + 80 - h)
