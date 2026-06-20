@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Git(*)",
       "Bash(*)",
       "Read(*)",
       "Write(*)",

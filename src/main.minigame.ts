@@ -1,6 +1,11 @@
 import { installPolyfills, getMainCanvas } from './platform/PixiAdapter'
 installPolyfills()
 
+// ── 云开发初始化 ──
+if (typeof wx !== 'undefined' && wx.cloud) {
+  wx.cloud.init({ env: 'cloud1-d5gtuwnx0aacd8adb' })
+}
+
 import * as PIXI from 'pixi.js-legacy'
 
 // ── PixiJS 微信补丁 ──
