@@ -42,14 +42,13 @@ export class FishView {
       } else {
         this.state = 'cruise'
       }
-      this.stateTimer = this.state === 'pause' ? 30 + Math.random() * 40 :
-                       this.state === 'dash' ? 15 + Math.random() * 20 :
+      this.stateTimer = this.state === 'pause' ? 60 + Math.random() * 80 :
+                       this.state === 'dash' ? 30 + Math.random() * 50 :
                        this.state === 'turn' ? 10 : 60 + Math.random() * 120
     }
 
     let speedMul = 1
-    this.sprite.alpha = 0.85
-    if (this.state === 'pause') { speedMul = 0; this.sprite.alpha = 0.4 }
+    if (this.state === 'pause') speedMul = 0
     else if (this.state === 'dash') speedMul = 3.5
     else if (this.state === 'turn') speedMul = 0.3
 
