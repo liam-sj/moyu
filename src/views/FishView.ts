@@ -49,7 +49,7 @@ export class FishView {
 
     let speedMul = 1
     if (this.state === 'pause') speedMul = 0
-    else if (this.state === 'dash') speedMul = 3.5
+    else if (this.state === 'dash') speedMul = 6
     else if (this.state === 'turn') speedMul = 0.3
 
     this.sprite.x += this.vx * dt * speedMul
