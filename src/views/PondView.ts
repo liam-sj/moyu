@@ -105,8 +105,9 @@ export class PondView {
         f.state = 'dash'
         f.stateTimer = 30 + Math.random() * 40
         const angle = Math.random() * Math.PI * 2
-        f.vx = Math.cos(angle) * 0.6
-        f.vy = Math.sin(angle) * 0.6
+        const spd = 0.4 + Math.random() * 0.5
+        f.vx = Math.cos(angle) * spd
+        f.vy = Math.sin(angle) * spd
       }
     }
   }
