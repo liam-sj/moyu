@@ -55,7 +55,13 @@ export class FishView {
     this.sprite.x += this.vx * dt * speedMul
     this.sprite.y += this.vy * dt * speedMul
 
-    // Bounce with nudge to prevent edge oscillation
+    // Bounce + dash when hitting edge
+    const bounced = this.sprite.x < bounds.x + 18 || this.sprite.x > bounds.x + bounds.w - 24 ||
+                    this.sprite.y < bounds.y + 14 || this.sprite.y > bounds.y + bounds.h - 18
+    if (bounced) {
+      this.state = 'dash'
+      this.stateTimer = 20 + Math.random() * 30
+    }
     if (this.sprite.x < bounds.x + 18) { this.vx = Math.abs(this.vx); this.sprite.x = bounds.x + 19 }
     if (this.sprite.x > bounds.x + bounds.w - 24) { this.vx = -Math.abs(this.vx); this.sprite.x = bounds.x + bounds.w - 25 }
     if (this.sprite.y < bounds.y + 14) { this.vy = Math.abs(this.vy); this.sprite.y = bounds.y + 15 }
