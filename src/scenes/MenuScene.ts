@@ -231,7 +231,13 @@ export class MenuScene extends Scene {
       // Keep within vertical bounds
       if (fish.sprite.y < fish.pondY + 14) { fish.sprite.y = fish.pondY + 14; fish.baseY = fish.pondY + 14 + fish.waveAmp }
       if (fish.sprite.y > fish.pondY + fish.pondH - 18) { fish.sprite.y = fish.pondY + fish.pondH - 18; fish.baseY = fish.pondY + fish.pondH - 18 - fish.waveAmp }
-      fish.sprite.scale.x = fish.vx > 0 ? 1 : -1
+      // Body wiggle + tail wag (simulates fin/tail movement)
+      const wiggle = 1 + Math.sin(now * fish.waveSpeed * 3 + fish.phase) * 0.08
+      const wag = Math.sin(now * fish.waveSpeed * 2.5 + fish.phase + 1) * 0.06
+      const dir = fish.vx > 0 ? 1 : -1
+      fish.sprite.scale.x = dir * wiggle
+      fish.sprite.scale.y = 1 / wiggle
+      fish.sprite.rotation = wag
     }
   }
 
