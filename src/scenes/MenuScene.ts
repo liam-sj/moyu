@@ -10,7 +10,7 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
+  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; phase: number; state: string; stateTimer: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
   private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
   private _scrollCtn: PIXI.Container | null = null
@@ -179,9 +179,10 @@ export class MenuScene extends Scene {
       this._scrollCtn!.addChild(sprite)
       this._pondFish.push({
         sprite,
-        vx: (0.15 + Math.random() * 0.3) * (Math.random() > 0.5 ? 1 : -1),
-        vy: (0.06 + Math.random() * 0.12) * (Math.random() > 0.5 ? 1 : -1),
+        vx: 0.15 * (Math.random() > 0.5 ? 1 : -1),
+        vy: 0.06 * (Math.random() > 0.5 ? 1 : -1),
         phase: Math.random() * Math.PI * 2,
+        state: 'cruise', stateTimer: 60 + Math.random() * 120,
         pondX: px, pondY: py, pondW: pw, pondH: ph,
       })
     }
@@ -221,15 +222,45 @@ export class MenuScene extends Scene {
     // Animate fish with sine-wave swimming
     const now = Date.now()
     for (const fish of this._pondFish) {
-      fish.sprite.x += fish.vx * dt
-      fish.sprite.y += fish.vy * dt
-      // Bounce off all edges
+      // ── State machine ──
+      fish.stateTimer -= dt
+      if (fish.stateTimer <= 0) {
+        const r = Math.random()
+        if (fish.state === 'cruise') {
+          if (r < 0.3) fish.state = 'turn'
+          else if (r < 0.5) fish.state = 'pause'
+          else if (r < 0.55) fish.state = 'dash'
+          else fish.state = 'cruise'
+        } else if (fish.state === 'turn') {
+          fish.state = 'cruise'; fish.vx *= -1
+        } else if (fish.state === 'pause') {
+          fish.state = 'cruise'
+        } else if (fish.state === 'dash') {
+          fish.state = 'cruise'
+        }
+        fish.stateTimer = fish.state === 'pause' ? 30 + Math.random() * 40 :
+                         fish.state === 'dash' ? 15 + Math.random() * 20 :
+                         fish.state === 'turn' ? 10 : 60 + Math.random() * 120
+      }
+
+      // ── Speed by state ──
+      let speedMul = 1
+      if (fish.state === 'pause') speedMul = 0
+      else if (fish.state === 'dash') speedMul = 2.5
+      else if (fish.state === 'turn') speedMul = 0.3
+
+      fish.sprite.x += fish.vx * dt * speedMul
+      fish.sprite.y += fish.vy * dt * speedMul
+
+      // Bounce off edges
       if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
       if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
-      // Face the movement direction (never swim backwards)
+
+      // Body animation (stronger during dash)
+      const animMul = fish.state === 'dash' ? 2 : 1
       const dir = fish.vx > 0 ? -1 : 1
-      const wiggle = 1 + Math.sin(now * 0.002 + fish.phase) * 0.04
-      const wag = Math.sin(now * 0.003 + fish.phase) * 0.03
+      const wiggle = 1 + Math.sin(now * 0.002 + fish.phase) * 0.04 * animMul
+      const wag = Math.sin(now * 0.003 + fish.phase) * 0.03 * animMul
       fish.sprite.scale.x = dir * wiggle
       fish.sprite.scale.y = 1 / wiggle
       fish.sprite.rotation = wag
