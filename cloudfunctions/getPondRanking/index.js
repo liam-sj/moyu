@@ -64,7 +64,7 @@ exports.main = async (event, context) => {
 
     // Get contributor avatars per pond
     const pondIds = POND_IDS
-    const contributors: Record<string, Array<{ url: string; count: number }>> = {}
+    const contributors = {}
     for (const pid of pondIds) {
       const topPlayers = await db.collection('player_ponds')
         .where({ pondId: pid, todayContribution: _.gt(0) })
@@ -72,8 +72,8 @@ exports.main = async (event, context) => {
         .limit(5)
         .get()
       contributors[pid] = topPlayers.data
-        .filter((p: any) => p.avatarUrl)
-        .map((p: any) => ({ url: p.avatarUrl, count: p.todayContribution }))
+        .filter(p => p.avatarUrl)
+        .map(p => ({ url: p.avatarUrl, count: p.todayContribution }))
     }
 
     return {

@@ -15,7 +15,7 @@ exports.main = async (event, context) => {
     const avatarUrl = event.avatarUrl || ''
 
     // Increment player contribution
-    const updates: any = {
+    const updates = {
       todayContribution: _.inc(1),
       [`totalContribution.${pondId}`]: _.inc(1)
     }
