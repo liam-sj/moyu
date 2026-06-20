@@ -125,9 +125,17 @@ export class MenuScene extends Scene {
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      // Request user info — wx.getUserInfo shows native dialog
-      if (typeof wx !== 'undefined') {
-        wx.getUserInfo({ success: () => {}, fail: () => {} })
+      // Create native user info button (always shows dialog)
+      if (typeof wx !== 'undefined' && !wx.getStorageSync('user_avatar')) {
+        const btn = wx.createUserInfoButton({
+          type: 'text',
+          text: '授权获取头像',
+          style: { left: 0, top: 0, width: 1, height: 1, backgroundColor: '#00000000' }
+        })
+        btn.onTap((res: any) => {
+          if (res.userInfo) wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
+          btn.destroy()
+        })
       }
       const c = getCachedPond()
       if (!c) {
