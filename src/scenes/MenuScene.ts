@@ -10,7 +10,7 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
+  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; baseY: number; waveSpeed: number; waveAmp: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
   private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
   private _scrollCtn: PIXI.Container | null = null
@@ -179,8 +179,11 @@ export class MenuScene extends Scene {
       this._scrollCtn!.addChild(sprite)
       this._pondFish.push({
         sprite,
-        vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
-        vy: (0.04 + Math.random() * 0.08) * (Math.random() > 0.5 ? 1 : -1),
+        vx: (0.15 + Math.random() * 0.3) * (Math.random() > 0.5 ? 1 : -1),
+        baseY: sprite.y,
+        waveSpeed: 0.003 + Math.random() * 0.005,
+        waveAmp: 6 + Math.random() * 12,
+        phase: Math.random() * Math.PI * 2,
         pondX: px, pondY: py, pondW: pw, pondH: ph,
       })
     }
@@ -217,14 +220,17 @@ export class MenuScene extends Scene {
       this.registerHitArea(item.rect, item.cb, 10)
     }
 
-    // Animate fish inside each pond
+    // Animate fish with sine-wave swimming
+    const now = Date.now()
     for (const fish of this._pondFish) {
       fish.sprite.x += fish.vx * dt
-      fish.sprite.y += fish.vy * dt
-      // Bounce off pond edges
+      // Sine wave vertical undulation
+      fish.sprite.y = fish.baseY + Math.sin(now * fish.waveSpeed + fish.phase) * fish.waveAmp
+      // Bounce off horizontal edges
       if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
-      if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
-      // Flip sprite based on direction
+      // Keep within vertical bounds
+      if (fish.sprite.y < fish.pondY + 14) { fish.sprite.y = fish.pondY + 14; fish.baseY = fish.pondY + 14 + fish.waveAmp }
+      if (fish.sprite.y > fish.pondY + fish.pondH - 18) { fish.sprite.y = fish.pondY + fish.pondH - 18; fish.baseY = fish.pondY + fish.pondH - 18 - fish.waveAmp }
       fish.sprite.scale.x = fish.vx > 0 ? 1 : -1
     }
   }
