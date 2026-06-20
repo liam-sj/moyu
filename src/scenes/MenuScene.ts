@@ -67,7 +67,7 @@ export class MenuScene extends Scene {
     }
 
     // ── 12 Fish Ponds (single column, sorted by rank) ──
-    const pondW = w - 24; const pondH = 36; const gap = 3
+    const pondW = w - 24; const pondH = 42; const gap = 2
     const gridY = barY + 40
 
     for (let i = 0; i < PONDS.length; i++) {
@@ -75,13 +75,23 @@ export class MenuScene extends Scene {
       const px = 12
       const py = gridY + i * (pondH + gap)
 
-      // Pond background (water color)
+      // Pond background — realistic water look
       const pondBg = new PIXI.Graphics()
-      pondBg.beginFill(pond.colorInt, 0.20)
-      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
+      // Deep water gradient (darker at bottom)
+      pondBg.beginFill(0x0A2A4A, 0.7)
+      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 8)
       pondBg.endFill()
-      pondBg.lineStyle(1.5, pond.colorInt, 0.4)
-      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
+      // Surface highlight
+      pondBg.beginFill(0x1A5A8A, 0.3)
+      pondBg.drawRoundedRect(px + 1, py + 1, pondW - 6, Math.floor(pondH * 0.6), 7)
+      pondBg.endFill()
+      // Water border
+      pondBg.lineStyle(1.5, pond.colorInt, 0.5)
+      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 8)
+      // Ripple line near top
+      pondBg.lineStyle(1, 0x3A8AC0, 0.25)
+      pondBg.moveTo(px + 4, py + pondH * 0.35)
+      pondBg.lineTo(px + pondW - 10, py + pondH * 0.35)
       this.container.addChild(pondBg)
 
       // Pond name + rank
@@ -89,21 +99,21 @@ export class MenuScene extends Scene {
       const nameTxt = new PIXI.Text(`${rankStr} ${pond.emoji} ${pond.name}`, {
         fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
-      nameTxt.x = px + 4; nameTxt.y = py + 9
+      nameTxt.x = px + 4; nameTxt.y = py + 13
       this.container.addChild(nameTxt)
 
       // Fish count badge
       const badgeTxt = new PIXI.Text('···', {
-        fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
+        fontFamily: 'sans-serif', fontSize: 10, fill: '#7FB3D8',
       } as any)
-      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 11
+      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 14
       this.container.addChild(badgeTxt)
 
       // Store pond area for later fish spawning
       this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
 
       // Create initial placeholder fish
-      this._spawnPondFish(pond.id, px + 90, py + 4, pondW - 130, pondH - 8, 2)
+      this._spawnPondFish(pond.id, px + 90, py + 2, pondW - 140, pondH - 4, 2)
 
       // Hit area
       this._pondHitAreas.push({
@@ -145,11 +155,11 @@ export class MenuScene extends Scene {
     const actualCount = Math.min(count, 10) // cap at 10 fish per pond
     for (let f = 0; f < actualCount; f++) {
       const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
-        fontFamily: 'sans-serif', fontSize: 12 + Math.random() * 8, align: 'center',
+        fontFamily: 'sans-serif', fontSize: 24 + Math.random() * 16, align: 'center',
       } as any)
       sprite.anchor.set(0.5)
-      sprite.x = px + 8 + Math.random() * (pw - 20)
-      sprite.y = py + 4 + Math.random() * (ph - 12)
+      sprite.x = px + 12 + Math.random() * (pw - 30)
+      sprite.y = py + 10 + Math.random() * (ph - 22)
       sprite.alpha = 0.7 + Math.random() * 0.3
       this.container.addChild(sprite)
       this._pondFish.push({
@@ -176,7 +186,7 @@ export class MenuScene extends Scene {
       for (const area of this._pondAreas) {
         const info = this._pondData.find(d => d.pondId === area.pondId)
         const count = info ? Math.max(0, Math.round(info.dailyClears / 5)) : 2
-        this._spawnPondFish(area.pondId, area.px + 90, area.py + 4, area.pondW - 130, area.pondH - 8, count || 2)
+        this._spawnPondFish(area.pondId, area.px + 90, area.py + 2, area.pondW - 140, area.pondH - 4, count || 2)
       }
     } catch {}
   }
