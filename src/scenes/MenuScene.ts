@@ -148,8 +148,9 @@ export class MenuScene extends Scene {
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
-      pv.updateFishHitAreas()
-      for (const item of pv.fishHitAreas) this.registerHitArea(item.rect, item.cb, 15)
+      const ox = pv.container.x + (this._scrollCtn?.x || 0)
+      const oy = pv.container.y + (this._scrollCtn?.y || 0)
+      for (const item of pv.getFishHitAreas(ox, oy)) this.registerHitArea(item.rect, item.cb, 15)
     }
   }
 }

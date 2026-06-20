@@ -72,21 +72,28 @@ export class PondView {
       )
       this._fish.push(f)
       this.container.addChild(f.sprite)
-      // Per-fish tap: dash away
+      // Per-fish tap: dash away (coordinates relative to pond container)
       this.fishHitAreas.push({
-        rect: { x: f.sprite.x - 15, y: f.sprite.y - 15, w: 30, h: 30 },
+        rect: { x: f.sprite.x, y: f.sprite.y, w: 1, h: 1 },
         cb: () => { f.state = 'dash'; f.stateTimer = 30 + Math.random() * 40 }
       })
     }
   }
 
-  /** Update per-fish hit area positions (called each frame) */
-  updateFishHitAreas(): void {
+  /** Update per-fish hit area positions (called each frame, returns screen-space rects) */
+  getFishHitAreas(ox: number, oy: number): Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> {
+    const result: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
     for (let i = 0; i < this._fish.length; i++) {
       const f = this._fish[i]
-      const ha = this.fishHitAreas[i]
-      if (ha) { ha.rect.x = f.sprite.x - 15; ha.rect.y = f.sprite.y - 15 }
+      const cb = this.fishHitAreas[i]?.cb
+      if (cb) {
+        result.push({
+          rect: { x: ox + f.sprite.x - 18, y: oy + f.sprite.y - 18, w: 36, h: 36 },
+          cb
+        })
+      }
     }
+    return result
   }
 
   /** Make every fish in this pond dash */
