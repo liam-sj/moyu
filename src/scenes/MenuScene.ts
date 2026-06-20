@@ -10,125 +10,135 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _fishSprites: Array<{ sprite: PIXI.Text; x: number; y: number; speed: number; amp: number; phase: number }> = []
-  private _fishContainer: PIXI.Container | null = null
+  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
     const w = sysInfo.windowWidth
     const h = sysInfo.windowHeight
 
-    // Background
+    // Water background
     const bg = new PIXI.Graphics()
-    bg.beginFill(0xC8A87C)
+    bg.beginFill(0x1A3A5C)
     bg.drawRect(0, 0, w, h)
     bg.endFill()
     this.container.addChild(bg)
 
     // Title
     const title = new PIXI.Text('摸鱼大师', {
-      fontFamily: 'sans-serif', fontSize: 40, fontWeight: 'bold',
+      fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold',
       fill: '#F39C12', align: 'center',
     } as any)
-    title.anchor.set(0.5); title.x = w / 2; title.y = h * 0.06
+    title.anchor.set(0.5); title.x = w / 2; title.y = h * 0.04
     this.container.addChild(title)
 
-    // Subtitle
-    const subtitle = new PIXI.Text('职场摸鱼三消挑战', {
-      fontFamily: 'sans-serif', fontSize: 14, fill: '#5C3828', align: 'center',
+    const sub = new PIXI.Text('职场摸鱼三消挑战', {
+      fontFamily: 'sans-serif', fontSize: 12, fill: '#7FB3D8', align: 'center',
     } as any)
-    subtitle.anchor.set(0.5); subtitle.x = w / 2; subtitle.y = h * 0.12
-    this.container.addChild(subtitle)
+    sub.anchor.set(0.5); sub.x = w / 2; sub.y = h * 0.09
+    this.container.addChild(sub)
 
-    // ── My Pond Card (compact) ──
+    // ── My Pond bar ──
     const cachedPond = getCachedPond()
     const pondCfg = cachedPond ? getPondById(cachedPond.pondId) : null
-    const myPondY = h * 0.17
+    const barY = h * 0.13
 
     if (pondCfg && cachedPond) {
-      const cardH = 36
-      const cardBg = new PIXI.Graphics()
-      cardBg.beginFill(pondCfg.colorInt, 0.3)
-      cardBg.drawRoundedRect(16, myPondY, w - 32, cardH, 8)
-      cardBg.endFill()
-      cardBg.lineStyle(2, pondCfg.colorInt, 0.6)
-      cardBg.drawRoundedRect(16, myPondY, w - 32, cardH, 8)
-      this.container.addChild(cardBg)
-
-      const info = new PIXI.Text(`${pondCfg.emoji} ${pondCfg.name} · ${pondCfg.slogan}  |  今日贡献: ${cachedPond.todayContribution}🐟`, {
-        fontFamily: 'sans-serif', fontSize: 11, fill: '#FFFFFF',
+      const bar = new PIXI.Graphics()
+      bar.beginFill(pondCfg.colorInt, 0.3)
+      bar.drawRoundedRect(12, barY, w - 24, 30, 8)
+      bar.endFill()
+      this.container.addChild(bar)
+      const info = new PIXI.Text(`${pondCfg.emoji} ${pondCfg.name} · ${pondCfg.slogan}  |  贡献: ${cachedPond.todayContribution}🐟`, {
+        fontFamily: 'sans-serif', fontSize: 10, fill: '#FFFFFF',
       } as any)
-      info.x = 24; info.y = myPondY + 10
+      info.x = 20; info.y = barY + 8
       this.container.addChild(info)
-
-      // Share button
-      const shareBg = new PIXI.Graphics()
-      shareBg.beginFill(0x8B7355, 0.7)
-      shareBg.drawRoundedRect(w - 50, myPondY + 6, 36, 24, 6)
-      shareBg.endFill()
-      this.container.addChild(shareBg)
-      const shareTxt = new PIXI.Text('📤', { fontFamily: 'sans-serif', fontSize: 14 } as any)
-      shareTxt.anchor.set(0.5); shareTxt.x = w - 32; shareTxt.y = myPondY + 18
-      this.container.addChild(shareTxt)
-      this._shareHitArea = { x: w - 50, y: myPondY + 6, w: 36, h: 24 }
+      this._shareHitArea = { x: w - 50, y: barY + 3, w: 36, h: 24 }
       this._shareCallback = () => generatePoster()
     } else {
-      const promptTxt = new PIXI.Text('🐟 通关后选择你的鱼，加入鱼塘', {
-        fontFamily: 'sans-serif', fontSize: 13, fill: '#6B5A4A', align: 'center',
+      const prompt = new PIXI.Text('🐟 通关后选鱼，加入鱼塘', {
+        fontFamily: 'sans-serif', fontSize: 12, fill: '#5A8AB5', align: 'center',
       } as any)
-      promptTxt.anchor.set(0.5); promptTxt.x = w / 2; promptTxt.y = myPondY + 14
-      this.container.addChild(promptTxt)
+      prompt.anchor.set(0.5); prompt.x = w / 2; prompt.y = barY + 15
+      this.container.addChild(prompt)
     }
 
-    // ── Full Pond Ranking (all 12 ponds, top to bottom) ──
-    const rankY = myPondY + 50
-    const rankTitle = new PIXI.Text('🏆 鱼塘排行', {
-      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold', fill: '#F39C12', align: 'center',
-    } as any)
-    rankTitle.anchor.set(0.5); rankTitle.x = w / 2; rankTitle.y = rankY
-    this.container.addChild(rankTitle)
+    // ── 12 Fish Ponds (3 columns × 4 rows grid) ──
+    const cols = 3; const pondW = Math.floor((w - 32) / cols); const pondH = 95
+    const gridY = barY + 40; const gap = 6
 
-    this._renderPondList(w, rankY + 22)
+    for (let i = 0; i < PONDS.length; i++) {
+      const pond = PONDS[i]
+      const col = i % cols; const row = Math.floor(i / cols)
+      const px = 8 + col * pondW + (col > 0 ? gap : 0)
+      const py = gridY + row * (pondH + gap)
 
-    // ── Swimming fish background animation ──
-    this._fishContainer = new PIXI.Container()
-    this.container.addChildAt(this._fishContainer, 1) // above background, below content
-    this._fishSprites = []
-    const fishEmojis = ['🐟', '🐠', '🐡', '🦐', '🐬', '🦑']
-    for (let i = 0; i < 8; i++) {
-      const emoji = fishEmojis[i % fishEmojis.length]
-      const sprite = new PIXI.Text(emoji, {
-        fontFamily: 'sans-serif', fontSize: 20 + Math.random() * 16, align: 'center',
+      // Pond background (water color)
+      const pondBg = new PIXI.Graphics()
+      pondBg.beginFill(pond.colorInt, 0.20)
+      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
+      pondBg.endFill()
+      pondBg.lineStyle(1.5, pond.colorInt, 0.4)
+      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
+      this.container.addChild(pondBg)
+
+      // Pond name
+      const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
+        fontFamily: 'sans-serif', fontSize: 10, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
-      sprite.anchor.set(0.5)
-      sprite.x = Math.random() * w
-      sprite.y = h * 0.15 + Math.random() * h * 0.50
-      sprite.alpha = 0.20 + Math.random() * 0.15
-      this._fishContainer.addChild(sprite)
-      const dir = i % 2 === 0 ? 1 : -1  // half swim left, half right
-      this._fishSprites.push({
-        sprite, x: sprite.x, y: sprite.y,
-        speed: (0.12 + Math.random() * 0.25) * dir,
-        amp: 12 + Math.random() * 25,
-        phase: Math.random() * Math.PI * 2,
+      nameTxt.x = px + 4; nameTxt.y = py + 3
+      this.container.addChild(nameTxt)
+
+      // Fish count badge
+      const badgeTxt = new PIXI.Text('···', {
+        fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
+      } as any)
+      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 4
+      this.container.addChild(badgeTxt)
+
+      // Create swimming fish inside pond
+      const fishCount = 2 + (i % 4) // 2-5 fish per pond
+      const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
+      for (let f = 0; f < fishCount; f++) {
+        const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
+          fontFamily: 'sans-serif', fontSize: 12 + Math.random() * 8, align: 'center',
+        } as any)
+        sprite.anchor.set(0.5)
+        sprite.x = px + 10 + Math.random() * (pondW - 30)
+        sprite.y = py + 18 + Math.random() * (pondH - 28)
+        sprite.alpha = 0.7 + Math.random() * 0.3
+        this.container.addChild(sprite)
+        this._pondFish.push({
+          sprite,
+          vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
+          vy: (0.04 + Math.random() * 0.08) * (Math.random() > 0.5 ? 1 : -1),
+          pondX: px, pondY: py + 16, pondW: pondW - 4, pondH: pondH - 18,
+        })
+      }
+
+      // Hit area
+      this._pondHitAreas.push({
+        rect: { x: px, y: py, w: pondW - 4, h: pondH },
+        cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(pond.id)) }
       })
     }
 
-    // ── Start Button ──
-    const btnW = 200, btnH = 50
-    const btnY = h - 80
+    // Start button
+    const btnW = 200, btnH = 44
+    const btnY = gridY + 4 * (pondH + gap) + 12
     const btn = new Button(
       Math.floor((w - btnW) / 2), Math.floor(btnY), btnW, btnH,
       '开始摸鱼',
-      { bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 22, radius: 8, shadow: true }
+      { bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true }
     )
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      const cached = getCachedPond()
-      if (!cached) {
-        const hasClearedL2 = wx.getStorageSync('cleared_level2')
-        if (hasClearedL2 && !wx.getStorageSync('fish_selection_shown')) {
+      const c = getCachedPond()
+      if (!c) {
+        const hl2 = wx.getStorageSync('cleared_level2')
+        if (hl2 && !wx.getStorageSync('fish_selection_shown')) {
           const { SelectFishScene } = require('./SelectFishScene')
           this.manager.replace(new SelectFishScene())
           return
@@ -139,82 +149,6 @@ export class MenuScene extends Scene {
     }
   }
 
-  private _renderPondList(w: number, y: number): void {
-    // Show all 12 ponds sorted by default config order, with fake ranking
-    const medals = ['🥇', '🥈', '🥉']
-    const rowH = 28
-    const cachedPond = getCachedPond()
-    const myPondId = cachedPond?.pondId
-
-    for (let i = 0; i < PONDS.length; i++) {
-      const pond = PONDS[i]
-      const ry = y + i * rowH
-      const rank = i + 1
-      const isMyPond = pond.id === myPondId
-
-      // Row background (highlight my pond)
-      if (isMyPond) {
-        const rowBg = new PIXI.Graphics()
-        rowBg.beginFill(pond.colorInt, 0.15)
-        rowBg.drawRoundedRect(12, ry, w - 24, rowH - 2, 6)
-        rowBg.endFill()
-        this.container.addChild(rowBg)
-      }
-
-      // Rank number or medal
-      const rankStr = rank <= 3 ? medals[rank - 1] : `${rank}`.padStart(2, ' ')
-      const rankTxt = new PIXI.Text(rankStr, {
-        fontFamily: 'sans-serif', fontSize: 13, fill: rank <= 3 ? '#F1C40F' : '#8B7355', fontWeight: 'bold',
-      } as any)
-      rankTxt.x = 18; rankTxt.y = ry + 5
-      this.container.addChild(rankTxt)
-
-      // Pond emoji + name
-      const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
-        fontFamily: 'sans-serif', fontSize: 13, fill: isMyPond ? '#FFFFFF' : '#5C3828', fontWeight: isMyPond ? 'bold' : 'normal',
-      } as any)
-      nameTxt.x = 52; nameTxt.y = ry + 5
-      this.container.addChild(nameTxt)
-
-      // Slogan (compact)
-      const slTxt = new PIXI.Text(pond.slogan, {
-        fontFamily: 'sans-serif', fontSize: 9, fill: '#8B7355',
-      } as any)
-      slTxt.x = 52; slTxt.y = ry + 18
-      this.container.addChild(slTxt)
-
-      // Fish count (placeholder — real data from cloud)
-      const countTxt = new PIXI.Text('···', {
-        fontFamily: 'sans-serif', fontSize: 11, fill: '#6B5A4A',
-      } as any)
-      countTxt.anchor.set(1, 0); countTxt.x = w - 18; countTxt.y = ry + 6
-      this.container.addChild(countTxt)
-
-      // Hit area for pond detail
-      this._pondHitAreas.push({
-        rect: { x: 12, y: ry, w: w - 24, h: rowH - 2 },
-        cb: () => {
-          const { PondDetailScene } = require('./PondDetailScene')
-          this.manager.push(new PondDetailScene(pond.id))
-        }
-      })
-    }
-
-    // Load real ranking data asynchronously
-    this._loadRankingData()
-  }
-
-  private async _loadRankingData(): Promise<void> {
-    try {
-      const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-      const data = (res as any).result
-      if (!data?.ok || !data.fatPondRank) return
-
-      // Re-render with real ranking data
-      // For simplicity, we just show the cloud data in the existing rows
-    } catch {}
-  }
-
   onUpdate(dt: number): void {
     if (this._startHitArea && this._startCallback) {
       this.registerHitArea(this._startHitArea, this._startCallback, 10)
@@ -223,19 +157,23 @@ export class MenuScene extends Scene {
       this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
     }
     for (const item of this._pondHitAreas) {
-      this.registerHitArea(item.rect, item.cb, 12)
+      this.registerHitArea(item.rect, item.cb, 10)
     }
 
-    // Animate swimming fish
-    const sw = (typeof wx !== 'undefined') ? wx.getSystemInfoSync().windowWidth : 375
-    for (const fish of this._fishSprites) {
-      fish.x += fish.speed * dt
-      fish.sprite.x = fish.x
-      fish.sprite.y = fish.y + Math.sin(Date.now() * 0.002 + fish.phase) * fish.amp
-      fish.sprite.scale.x = fish.speed > 0 ? 1 : -1
-      // Wrap around edges
-      if (fish.x > sw + 40) fish.x = -40
-      if (fish.x < -40) fish.x = sw + 40
+    // Animate fish inside each pond
+    for (const fish of this._pondFish) {
+      fish.sprite.x += fish.vx * dt
+      fish.sprite.y += fish.vy * dt
+      // Bounce off pond edges
+      if (fish.sprite.x < fish.pondX + 6 || fish.sprite.x > fish.pondX + fish.pondW - 10) fish.vx *= -1
+      if (fish.sprite.y < fish.pondY + 4 || fish.sprite.y > fish.pondY + fish.pondH - 6) fish.vy *= -1
+      // Flip sprite based on direction
+      fish.sprite.scale.x = fish.vx > 0 ? 1 : -1
     }
+  }
+
+  // Override onResume to re-render fish sprites (since PIXI can't be easily updated in onUpdate)
+  onResume(): void {
+    // Re-render animated fish (called when returning from game)
   }
 }
