@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { getCachedPond, getPondById, PONDS } from '../config/ponds'
+import { PondView } from '../views/PondView'
 import { generatePoster } from '../utils/SharePoster'
 
 export class MenuScene extends Scene {
@@ -10,14 +11,10 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; phase: number; state: string; stateTimer: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
-  private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
-  private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
+  private _pondViews: PondView[] = []
   private _scrollCtn: PIXI.Container | null = null
   private _scrollY = 0
   private _scrollMax = 0
-  private _touchStartY = 0
-  private _scrollStartY = 0
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -31,10 +28,9 @@ export class MenuScene extends Scene {
     bg.endFill()
     this.container.addChild(bg)
 
-    // Title
+    // Title + subtitle
     const title = new PIXI.Text('摸鱼大师', {
-      fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold',
-      fill: '#F39C12', align: 'center',
+      fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold', fill: '#F39C12', align: 'center',
     } as any)
     title.anchor.set(0.5); title.x = w / 2; title.y = 18
     this.container.addChild(title)
@@ -45,7 +41,7 @@ export class MenuScene extends Scene {
     sub.anchor.set(0.5); sub.x = w / 2; sub.y = 44
     this.container.addChild(sub)
 
-    // ── My Pond bar ──
+    // My Pond bar
     const cachedPond = getCachedPond()
     const pondCfg = cachedPond ? getPondById(cachedPond.pondId) : null
     const barY = 60
@@ -71,85 +67,39 @@ export class MenuScene extends Scene {
       this.container.addChild(prompt)
     }
 
-    // ── Scrollable 12 Fish Ponds (single column, 3x height) ──
+    // Scrollable pond list
     const pondW = w - 60; const pondH = 160; const gap = 24
-    const listStartY = barY + 30
-    const listTotalH = PONDS.length * (pondH + gap)
-    this._scrollMax = Math.max(0, listStartY + listTotalH + 80 - h)
+    const gridY = barY + 36
+    const listTotal = PONDS.length * (pondH + gap)
+    this._scrollMax = Math.max(0, gridY + listTotal + 80 - h)
 
-    // Scrollable container
     this._scrollCtn = new PIXI.Container()
     this.container.addChild(this._scrollCtn)
 
     for (let i = 0; i < PONDS.length; i++) {
-      const pond = PONDS[i]
       const px = (w - pondW) / 2
-      const py = listStartY + i * (pondH + gap)
+      const py = gridY + i * (pondH + gap)
+      const pv = new PondView(PONDS[i], i, px, py, pondW, pondH)
+      pv.spawnFish(2)
+      this._scrollCtn.addChild(pv.container)
+      this._pondViews.push(pv)
 
-      // Pond background (water color)
-      const pondBg = new PIXI.Graphics()
-      pondBg.beginFill(pond.colorInt, 0.20)
-      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
-      pondBg.endFill()
-      pondBg.lineStyle(1.5, pond.colorInt, 0.4)
-      pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
-      this._scrollCtn!.addChild(pondBg)
-
-      // Pond name
-      const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
-        fontFamily: 'sans-serif', fontSize: 10, fontWeight: 'bold', fill: '#FFFFFF',
-      } as any)
-      nameTxt.x = px + 4; nameTxt.y = py + 3
-      this._scrollCtn!.addChild(nameTxt)
-
-      // Fish count badge
-      const badgeTxt = new PIXI.Text('···', {
-        fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
-      } as any)
-      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 4
-      this._scrollCtn!.addChild(badgeTxt)
-
-      // Store pond area for later fish spawning
-      this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
-
-      // Create initial placeholder fish
-      this._spawnPondFish(pond.id, px, py + 16, pondW - 4, pondH - 18, 2)
-
-      // Hit area
       this._pondHitAreas.push({
-        rect: { x: px, y: py, w: pondW - 4, h: pondH },
-        cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(pond.id)) }
+        rect: { x: px, y: py, w: pondW, h: pondH },
+        cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(PONDS[i].id)) }
       })
     }
 
-    // Start button
-    const btnW = 200, btnH = 44
-    const btnY = h - 60  // fixed at bottom, above scroll area
-    const btn = new Button(
-      Math.floor((w - btnW) / 2), Math.floor(btnY), btnW, btnH,
-      '开始摸鱼',
-      { bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true }
-    )
-    this.container.addChild(btn.container)
-    this._startHitArea = btn.hitArea
-    // Load real fish counts from cloud
+    // Load real counts
     this._loadRealCounts()
 
-    // Touch scroll for pond list
-    if (typeof wx !== 'undefined' && this._scrollMax > 0) {
-      let startY = 0; let startScroll = 0
-      wx.onTouchStart((e: any) => {
-        if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY }
-      })
-      wx.onTouchMove((e: any) => {
-        if (e.touches?.length && this._scrollCtn) {
-          const dy = e.touches[0].clientY - startY
-          this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + dy))
-          this._scrollCtn.y = this._scrollY
-        }
-      })
-    }
-
+    // Button
+    const btnW = 200; const btnH = 44
+    const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h - 60), btnW, btnH, '开始摸鱼', {
+      bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true,
+    })
+    this.container.addChild(btn.container)
+    this._startHitArea = btn.hitArea
     this._startCallback = () => {
       const c = getCachedPond()
       if (!c) {
@@ -163,27 +113,16 @@ export class MenuScene extends Scene {
       const { GameScene } = require('./GameScene')
       this.manager.replace(new GameScene(), { levelId: 'level1' })
     }
-  }
 
-  private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number): void {
-    const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
-    const actualCount = Math.min(count, 20) // cap at 20 fish
-    for (let f = 0; f < actualCount; f++) {
-      const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
-        fontFamily: 'sans-serif', fontSize: 18 + Math.random() * 12, align: 'center',
-      } as any)
-      sprite.anchor.set(0.5)
-      sprite.x = px + 8 + Math.random() * (pw - 20)
-      sprite.y = py + 4 + Math.random() * (ph - 12)
-      sprite.alpha = 0.7 + Math.random() * 0.3
-      this._scrollCtn!.addChild(sprite)
-      this._pondFish.push({
-        sprite,
-        vx: 0.15 * (Math.random() > 0.5 ? 1 : -1),
-        vy: 0.06 * (Math.random() > 0.5 ? 1 : -1),
-        phase: Math.random() * Math.PI * 2,
-        state: 'cruise', stateTimer: 60 + Math.random() * 120,
-        pondX: px, pondY: py, pondW: pw, pondH: ph,
+    // Touch scroll
+    if (typeof wx !== 'undefined' && this._scrollMax > 0) {
+      let startY = 0; let startScroll = 0
+      wx.onTouchStart((e: any) => { if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY } })
+      wx.onTouchMove((e: any) => {
+        if (e.touches?.length && this._scrollCtn) {
+          this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + e.touches[0].clientY - startY))
+          this._scrollCtn.y = this._scrollY
+        }
       })
     }
   }
@@ -193,82 +132,19 @@ export class MenuScene extends Scene {
       const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
       const data = (res as any).result
       if (!data?.ok || !data.fatPondRank) return
-      this._pondData = data.fatPondRank
-
-      // Clear placeholder fish
-      for (const f of this._pondFish) { this._scrollCtn!.removeChild(f.sprite); f.sprite.destroy() }
-      this._pondFish = []
-
-      // Re-spawn fish with real counts
-      for (const area of this._pondAreas) {
-        const info = this._pondData.find(d => d.pondId === area.pondId)
-        const count = info ? Math.max(0, Math.round(info.dailyClears / 5)) : 2
-        this._spawnPondFish(area.pondId, area.px, area.py + 16, area.pondW, area.pondH - 18, count || 2)
+      for (let i = 0; i < this._pondViews.length; i++) {
+        const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)
+        const count = info ? Math.max(1, Math.round(info.dailyClears / 5)) : 2
+        this._pondViews[i].spawnFish(count)
+        this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '···')
       }
     } catch {}
   }
 
   onUpdate(dt: number): void {
-    if (this._startHitArea && this._startCallback) {
-      this.registerHitArea(this._startHitArea, this._startCallback, 10)
-    }
-    if (this._shareHitArea && this._shareCallback) {
-      this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
-    }
-    for (const item of this._pondHitAreas) {
-      this.registerHitArea(item.rect, item.cb, 10)
-    }
-
-    // Animate fish with sine-wave swimming
-    const now = Date.now()
-    for (const fish of this._pondFish) {
-      // ── State machine ──
-      fish.stateTimer -= dt
-      if (fish.stateTimer <= 0) {
-        const r = Math.random()
-        if (fish.state === 'cruise') {
-          if (r < 0.3) fish.state = 'turn'
-          else if (r < 0.5) fish.state = 'pause'
-          else if (r < 0.55) fish.state = 'dash'
-          else fish.state = 'cruise'
-        } else if (fish.state === 'turn') {
-          fish.state = 'cruise'; fish.vx *= -1
-        } else if (fish.state === 'pause') {
-          fish.state = 'cruise'
-        } else if (fish.state === 'dash') {
-          fish.state = 'cruise'
-        }
-        fish.stateTimer = fish.state === 'pause' ? 30 + Math.random() * 40 :
-                         fish.state === 'dash' ? 15 + Math.random() * 20 :
-                         fish.state === 'turn' ? 10 : 60 + Math.random() * 120
-      }
-
-      // ── Speed by state ──
-      let speedMul = 1
-      if (fish.state === 'pause') speedMul = 0
-      else if (fish.state === 'dash') speedMul = 2.5
-      else if (fish.state === 'turn') speedMul = 0.3
-
-      fish.sprite.x += fish.vx * dt * speedMul
-      fish.sprite.y += fish.vy * dt * speedMul
-
-      // Bounce off edges
-      if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
-      if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
-
-      // Body animation (stronger during dash)
-      const animMul = fish.state === 'dash' ? 2 : 1
-      const dir = fish.vx > 0 ? -1 : 1
-      const wiggle = 1 + Math.sin(now * 0.002 + fish.phase) * 0.04 * animMul
-      const wag = Math.sin(now * 0.003 + fish.phase) * 0.03 * animMul
-      fish.sprite.scale.x = dir * wiggle
-      fish.sprite.scale.y = 1 / wiggle
-      fish.sprite.rotation = wag
-    }
-  }
-
-  // Override onResume to re-render fish sprites (since PIXI can't be easily updated in onUpdate)
-  onResume(): void {
-    // Re-render animated fish (called when returning from game)
+    if (this._startHitArea && this._startCallback) this.registerHitArea(this._startHitArea, this._startCallback, 10)
+    if (this._shareHitArea && this._shareCallback) this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
+    for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
+    for (const pv of this._pondViews) pv.updateFish(dt)
   }
 }
