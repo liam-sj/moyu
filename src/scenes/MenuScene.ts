@@ -15,6 +15,8 @@ export class MenuScene extends Scene {
   private _scrollCtn: PIXI.Container | null = null
   private _scrollY = 0
   private _scrollMax = 0
+  private _lastTouchX = 0
+  private _lastTouchY = 0
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -115,16 +117,24 @@ export class MenuScene extends Scene {
       this.manager.replace(new GameScene(), { levelId: 'level1' })
     }
 
-    // Touch scroll
-    if (typeof wx !== 'undefined' && this._scrollMax > 0) {
-      let startY = 0; let startScroll = 0
-      wx.onTouchStart((e: any) => { if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY } })
-      wx.onTouchMove((e: any) => {
-        if (e.touches?.length && this._scrollCtn) {
-          this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + e.touches[0].clientY - startY))
-          this._scrollCtn.y = this._scrollY
+    // Touch scroll + track position for fish splash
+    if (typeof wx !== 'undefined') {
+      wx.onTouchStart((e: any) => {
+        if (e.touches?.length) {
+          this._lastTouchX = e.touches[0].clientX
+          this._lastTouchY = e.touches[0].clientY
         }
       })
+      if (this._scrollMax > 0) {
+        let startY = 0; let startScroll = 0
+        wx.onTouchStart((e: any) => { if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY } })
+        wx.onTouchMove((e: any) => {
+          if (e.touches?.length && this._scrollCtn) {
+            this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + e.touches[0].clientY - startY))
+            this._scrollCtn.y = this._scrollY
+          }
+        })
+      }
     }
   }
 
@@ -148,9 +158,14 @@ export class MenuScene extends Scene {
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
+      // Water area tap → dash nearby fish
       const ox = pv.container.x + (this._scrollCtn?.x || 0)
       const oy = pv.container.y + (this._scrollCtn?.y || 0)
-      for (const item of pv.getFishHitAreas(ox, oy)) this.registerHitArea(item.rect, item.cb, 15)
+      this.registerHitArea({ x: ox + 8, y: oy + 22, w: (w - 60) - 16, h: 210 - 26 }, () => {
+        const lx = this._lastTouchX - ox
+        const ly = this._lastTouchY - oy
+        pv.dashNear(lx, ly, 60)
+      }, 15)
     }
   }
 }

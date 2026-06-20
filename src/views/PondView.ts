@@ -96,11 +96,23 @@ export class PondView {
     return result
   }
 
+  /** Dash fish near a point (local coordinates, radius in px) */
+  dashNear(lx: number, ly: number, radius: number): void {
+    for (const f of this._fish) {
+      const dx = f.sprite.x - lx
+      const dy = f.sprite.y - ly
+      if (Math.sqrt(dx * dx + dy * dy) < radius) {
+        f.state = 'dash'
+        f.stateTimer = 30 + Math.random() * 40
+      }
+    }
+  }
+
   /** Make every fish in this pond dash */
   dashAll(): void {
     for (const f of this._fish) {
-      ;(f as any).state = 'dash'
-      ;(f as any).stateTimer = 25 + Math.random() * 35
+      f.state = 'dash'
+      f.stateTimer = 25 + Math.random() * 35
     }
   }
 
