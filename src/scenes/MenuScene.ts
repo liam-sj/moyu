@@ -125,6 +125,10 @@ export class MenuScene extends Scene {
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
+      // Request user info upfront so avatar is ready for contribution
+      if (typeof wx !== 'undefined') {
+        wx.authorize({ scope: 'scope.userInfo', success: () => {}, fail: () => {} })
+      }
       const c = getCachedPond()
       if (!c) {
         const hl2 = wx.getStorageSync('cleared_level2')

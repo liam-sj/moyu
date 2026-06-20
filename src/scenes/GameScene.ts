@@ -1169,14 +1169,12 @@ export class GameScene extends Scene {
             }
           }).catch(() => {})
         }
-        // Request user info authorization for avatar
+        // Avatar already authorized at start — just get it
         try {
-          wx.authorize({ scope: 'scope.userInfo', success: () => {
-            wx.getUserInfo({
-              success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
-              fail: () => doContribute('')
-            })
-          }, fail: () => doContribute('') })
+          wx.getUserInfo({
+            success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
+            fail: () => doContribute('')
+          })
         } catch { doContribute('') }
       }
 
