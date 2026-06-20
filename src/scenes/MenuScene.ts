@@ -192,7 +192,13 @@ export class MenuScene extends Scene {
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
       const gp = (pv.container as any).getGlobalPosition()
-      for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 15)
+      // Water area splash dash (fallback)
+      const pw = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowWidth : 375) - 60
+      this.registerHitArea({ x: gp.x + 8, y: gp.y + 22, w: pw - 16, h: 210 - 26 }, () => {
+        pv.dashNear(this._lastTouchX - gp.x, this._lastTouchY - gp.y, 60)
+      }, 16)
+      // Per-fish hit areas
+      for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 20)
     }
   }
 }
