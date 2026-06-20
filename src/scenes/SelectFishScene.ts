@@ -124,6 +124,7 @@ export class SelectFishScene extends Scene {
       console.log('[SelectFish] 云函数返回', JSON.stringify(data))
       if (data.ok) {
         setCachedPond({ pondId: pond.id, fishId: pond.fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
+        wx.setStorageSync('fish_selection_shown', true)
         // Return to menu
         const { MenuScene } = require('./MenuScene')
         this.manager.replace(new MenuScene())

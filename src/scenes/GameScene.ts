@@ -1156,20 +1156,25 @@ export class GameScene extends Scene {
 
       // Report contribution (only for Level 2 clears)
       const cachedPond = getCachedPond()
+      console.log('[GameScene] onGameOver won=true levelId=', this.levelId, 'cachedPond=', !!cachedPond)
       if (cachedPond && this.levelId === 'level2') {
-        const avatarUrl = wx.getStorageSync('user_avatar') || ''
-        console.log('[GameScene] 贡献: level2通关, avatarUrl=', avatarUrl)
-        wx.cloud.callFunction({
-          name: 'contribute',
-          data: { avatarUrl }
-        }).then((res: any) => {
-          const d = (res as any).result
-          console.log('[GameScene] contribute返回', JSON.stringify(d))
-          if (d && d.ok) {
-            setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
-            wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
-          }
-        }).catch((e: any) => console.log('[GameScene] contribute失败', e))
+        // Try storage first, fallback to getUserInfo
+        const existingAvatar = wx.getStorageSync('user_avatar') || ''
+        const tryContribute = (avatarUrl: string) => {
+          console.log('[GameScene] 贡献: avatarUrl=', avatarUrl)
+          wx.cloud.callFunction({
+            name: 'contribute',
+            data: { avatarUrl }
+          }).then((res: any) => {
+            const d = (res as any).result; console.log('[GameScene] contribute返回', JSON.stringify(d))
+            if (d && d.ok) { setCachedPond({ ...cachedPond, todayContribution: d.todayContribution }); wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 }) }
+          }).catch((e: any) => console.log('[GameScene] contribute失败', e))
+        }
+        if (existingAvatar) { tryContribute(existingAvatar) }
+        else {
+          try { wx.getUserInfo({ success: (info: any) => { const url = info.userInfo.avatarUrl || ''; wx.setStorageSync('user_avatar', url); tryContribute(url) }, fail: () => tryContribute('') }) }
+          catch { tryContribute('') }
+        }
       }
 
       // Check achievements
