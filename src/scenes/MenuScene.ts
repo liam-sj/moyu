@@ -13,6 +13,11 @@ export class MenuScene extends Scene {
   private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
   private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
+  private _scrollCtn: PIXI.Container | null = null
+  private _scrollY = 0
+  private _scrollMax = 0
+  private _touchStartY = 0
+  private _scrollStartY = 0
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -66,14 +71,20 @@ export class MenuScene extends Scene {
       this.container.addChild(prompt)
     }
 
-    // ── 12 Fish Ponds (single column) ──
-    const pondW = w - 20; const pondH = 42; const gap = 4
-    const gridY = barY + 40
+    // ── Scrollable 12 Fish Ponds (single column, 3x height) ──
+    const pondW = w - 20; const pondH = 126; const gap = 6
+    const listStartY = barY + 30
+    const listTotalH = PONDS.length * (pondH + gap)
+    this._scrollMax = Math.max(0, listStartY + listTotalH + 80 - h)
+
+    // Scrollable container
+    this._scrollCtn = new PIXI.Container()
+    this.container.addChild(this._scrollCtn)
 
     for (let i = 0; i < PONDS.length; i++) {
       const pond = PONDS[i]
       const px = 10
-      const py = gridY + i * (pondH + gap)
+      const py = listStartY + i * (pondH + gap)
 
       // Pond background (water color)
       const pondBg = new PIXI.Graphics()
@@ -82,21 +93,21 @@ export class MenuScene extends Scene {
       pondBg.endFill()
       pondBg.lineStyle(1.5, pond.colorInt, 0.4)
       pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
-      this.container.addChild(pondBg)
+      this._scrollCtn!.addChild(pondBg)
 
       // Pond name
       const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
         fontFamily: 'sans-serif', fontSize: 10, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
       nameTxt.x = px + 4; nameTxt.y = py + 3
-      this.container.addChild(nameTxt)
+      this._scrollCtn!.addChild(nameTxt)
 
       // Fish count badge
       const badgeTxt = new PIXI.Text('···', {
         fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
       } as any)
       badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 4
-      this.container.addChild(badgeTxt)
+      this._scrollCtn!.addChild(badgeTxt)
 
       // Store pond area for later fish spawning
       this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
@@ -113,7 +124,7 @@ export class MenuScene extends Scene {
 
     // Start button
     const btnW = 200, btnH = 44
-    const btnY = gridY + 12 * (pondH + gap) + 12
+    const btnY = h - 60  // fixed at bottom, above scroll area
     const btn = new Button(
       Math.floor((w - btnW) / 2), Math.floor(btnY), btnW, btnH,
       '开始摸鱼',
@@ -123,6 +134,21 @@ export class MenuScene extends Scene {
     this._startHitArea = btn.hitArea
     // Load real fish counts from cloud
     this._loadRealCounts()
+
+    // Touch scroll for pond list
+    if (typeof wx !== 'undefined' && this._scrollMax > 0) {
+      let startY = 0; let startScroll = 0
+      wx.onTouchStart((e: any) => {
+        if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY }
+      })
+      wx.onTouchMove((e: any) => {
+        if (e.touches?.length && this._scrollCtn) {
+          const dy = e.touches[0].clientY - startY
+          this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + dy))
+          this._scrollCtn.y = this._scrollY
+        }
+      })
+    }
 
     this._startCallback = () => {
       const c = getCachedPond()
@@ -141,7 +167,7 @@ export class MenuScene extends Scene {
 
   private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number): void {
     const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
-    const actualCount = Math.min(count, 10) // cap at 10 fish per pond
+    const actualCount = Math.min(count, 15) // cap at 15 fish
     for (let f = 0; f < actualCount; f++) {
       const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
         fontFamily: 'sans-serif', fontSize: 18 + Math.random() * 12, align: 'center',
@@ -150,7 +176,7 @@ export class MenuScene extends Scene {
       sprite.x = px + 8 + Math.random() * (pw - 20)
       sprite.y = py + 4 + Math.random() * (ph - 12)
       sprite.alpha = 0.7 + Math.random() * 0.3
-      this.container.addChild(sprite)
+      this._scrollCtn!.addChild(sprite)
       this._pondFish.push({
         sprite,
         vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
@@ -168,7 +194,7 @@ export class MenuScene extends Scene {
       this._pondData = data.fatPondRank
 
       // Clear placeholder fish
-      for (const f of this._pondFish) { this.container.removeChild(f.sprite); f.sprite.destroy() }
+      for (const f of this._pondFish) { this._scrollCtn!.removeChild(f.sprite); f.sprite.destroy() }
       this._pondFish = []
 
       // Re-spawn fish with real counts
