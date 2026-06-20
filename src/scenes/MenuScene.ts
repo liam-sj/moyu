@@ -115,7 +115,7 @@ export class MenuScene extends Scene {
       this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id, ctn: pondCtn })
 
       // Create initial placeholder fish
-      this._spawnPondFish(pond.id, px + 90, py + 2, pondW - 140, pondH - 4, 2)
+      this._spawnPondFish(pond.id, px + 90, py + 2, pondW - 140, pondH - 4, 2, pondCtn)
 
       // Hit area
       this._pondHitAreas.push({
@@ -152,7 +152,7 @@ export class MenuScene extends Scene {
     }
   }
 
-  private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number): void {
+  private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number, ctn: PIXI.Container): void {
     const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
     const actualCount = Math.min(count, 10) // cap at 10 fish per pond
     for (let f = 0; f < actualCount; f++) {
@@ -163,7 +163,7 @@ export class MenuScene extends Scene {
       sprite.x = px + 12 + Math.random() * (pw - 30)
       sprite.y = py + 10 + Math.random() * (ph - 22)
       sprite.alpha = 0.7 + Math.random() * 0.3
-      this.container.addChild(sprite)
+      ctn.addChild(sprite)
       this._pondFish.push({
         sprite,
         vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
@@ -181,14 +181,14 @@ export class MenuScene extends Scene {
       this._pondData = data.fatPondRank
 
       // Clear placeholder fish
-      for (const f of this._pondFish) { this.container.removeChild(f.sprite); f.sprite.destroy() }
+      for (const f of this._pondFish) { f.sprite.parent?.removeChild(f.sprite); f.sprite.destroy() }
       this._pondFish = []
 
       // Re-spawn fish with real counts
       for (const area of this._pondAreas) {
         const info = this._pondData.find(d => d.pondId === area.pondId)
         const count = info ? Math.max(0, Math.round(info.dailyClears / 5)) : 2
-        this._spawnPondFish(area.pondId, area.px + 90, area.py + 2, area.pondW - 140, area.pondH - 4, count || 2)
+        this._spawnPondFish(area.pondId, area.px + 90, area.py + 2, area.pondW - 140, area.pondH - 4, count || 2, area.ctn)
       }
     } catch {}
   }
