@@ -72,6 +72,14 @@ export class PondView {
     }
   }
 
+  /** Make every fish in this pond dash */
+  dashAll(): void {
+    for (const f of this._fish) {
+      ;(f as any).state = 'dash'
+      ;(f as any).stateTimer = 25 + Math.random() * 35
+    }
+  }
+
   clearFish(): void {
     for (const f of this._fish) f.destroy()
     this._fish = []
