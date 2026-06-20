@@ -68,7 +68,7 @@ export class MenuScene extends Scene {
     }
 
     // Scrollable pond list
-    const pondW = w - 60; const pondH = 160; const gap = 24
+    const pondW = w - 60; const pondH = 210; const gap = 24
     const gridY = barY + 36
     const listTotal = PONDS.length * (pondH + gap)
     this._scrollMax = Math.max(0, gridY + listTotal + 80 - h)
