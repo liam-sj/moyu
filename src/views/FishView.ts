@@ -48,8 +48,9 @@ export class FishView {
     }
 
     let speedMul = 1
-    if (this.state === 'pause') speedMul = 0
-    else if (this.state === 'dash') speedMul = 2.5
+    this.sprite.alpha = 0.85
+    if (this.state === 'pause') { speedMul = 0; this.sprite.alpha = 0.4 }
+    else if (this.state === 'dash') speedMul = 3.5
     else if (this.state === 'turn') speedMul = 0.3
 
     this.sprite.x += this.vx * dt * speedMul
@@ -60,7 +61,7 @@ export class FishView {
     if (this.sprite.y < bounds.y + 14 || this.sprite.y > bounds.y + bounds.h - 18) this.vy *= -1
 
     // Body animation
-    const animMul = this.state === 'dash' ? 2 : 1
+    const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1
     const dir = this.vx > 0 ? -1 : 1
     const wiggle = 1 + Math.sin(now * 0.002 + this.phase) * 0.04 * animMul
     const wag = Math.sin(now * 0.003 + this.phase) * 0.03 * animMul
