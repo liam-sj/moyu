@@ -12,7 +12,7 @@ export class MenuScene extends Scene {
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
-  private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
+  private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string; ctn: PIXI.Container }> = []
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -75,42 +75,44 @@ export class MenuScene extends Scene {
       const px = 12
       const py = gridY + i * (pondH + gap)
 
+      // 俯视70° 鱼塘容器（scaleY压缩模拟透视）
+      const pondCtn = new PIXI.Container()
+      pondCtn.scale.y = 0.65
+
       // Pond background — realistic water look
       const pondBg = new PIXI.Graphics()
-      // Deep water gradient (darker at bottom)
       pondBg.beginFill(0x0A2A4A, 0.7)
       pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 8)
       pondBg.endFill()
-      // Surface highlight
       pondBg.beginFill(0x1A5A8A, 0.3)
       pondBg.drawRoundedRect(px + 1, py + 1, pondW - 6, Math.floor(pondH * 0.6), 7)
       pondBg.endFill()
-      // Water border
       pondBg.lineStyle(1.5, pond.colorInt, 0.5)
       pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 8)
-      // Ripple line near top
       pondBg.lineStyle(1, 0x3A8AC0, 0.25)
       pondBg.moveTo(px + 4, py + pondH * 0.35)
       pondBg.lineTo(px + pondW - 10, py + pondH * 0.35)
-      this.container.addChild(pondBg)
+      pondCtn.addChild(pondBg)
 
       // Pond name + rank
       const rankStr = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}`
       const nameTxt = new PIXI.Text(`${rankStr} ${pond.emoji} ${pond.name}`, {
         fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
-      nameTxt.x = px + 4; nameTxt.y = py + 13
-      this.container.addChild(nameTxt)
+      nameTxt.x = px + 4; nameTxt.y = py + 4
+      pondCtn.addChild(nameTxt)
 
       // Fish count badge
       const badgeTxt = new PIXI.Text('···', {
         fontFamily: 'sans-serif', fontSize: 10, fill: '#7FB3D8',
       } as any)
-      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 14
-      this.container.addChild(badgeTxt)
+      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 12; badgeTxt.y = py + 5
+      pondCtn.addChild(badgeTxt)
+
+      this.container.addChild(pondCtn)
 
       // Store pond area for later fish spawning
-      this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
+      this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id, ctn: pondCtn })
 
       // Create initial placeholder fish
       this._spawnPondFish(pond.id, px + 90, py + 2, pondW - 140, pondH - 4, 2)
