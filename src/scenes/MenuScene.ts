@@ -83,7 +83,7 @@ export class MenuScene extends Scene {
 
     for (let i = 0; i < PONDS.length; i++) {
       const pond = PONDS[i]
-      const px = 10
+      const px = (w - pondW) / 2
       const py = listStartY + i * (pondH + gap)
 
       // Pond background (water color)
