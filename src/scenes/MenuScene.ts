@@ -80,7 +80,7 @@ export class MenuScene extends Scene {
       const px = (w - pondW) / 2
       const py = gridY + i * (pondH + gap)
       const pv = new PondView(PONDS[i], i, px, py, pondW, pondH)
-      pv.spawnFish(2)
+      pv.spawnFish(5)
       this._scrollCtn.addChild(pv.container)
       this._pondViews.push(pv)
 
@@ -134,7 +134,7 @@ export class MenuScene extends Scene {
       if (!data?.ok || !data.fatPondRank) return
       for (let i = 0; i < this._pondViews.length; i++) {
         const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)
-        const count = info ? Math.max(1, Math.round(info.dailyClears / 5)) : 2
+        const count = info ? Math.max(3, Math.round(info.dailyClears / 3)) : 5
         this._pondViews[i].spawnFish(count)
         this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '···')
       }

@@ -58,7 +58,7 @@ export class PondView {
   /** Spawn fish with given count */
   spawnFish(count: number): void {
     this.clearFish()
-    const max = Math.min(count, 20)
+    const max = Math.min(count, 30)
     const emojis = ['🐟', '🐠', '🐡', '🦐']
     for (let i = 0; i < max; i++) {
       const emoji = emojis[i % emojis.length]
