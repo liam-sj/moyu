@@ -13,9 +13,12 @@ exports.main = async (event, context) => {
     if (existing.data.length > 0) {
       return { ok: false, reason: 'already_selected' }
     }
+    const avatarUrl = event.avatarUrl || ''
+    const nickName = event.nickName || ''
     await db.collection('player_ponds').add({
       data: {
         openId, fishId, pondId,
+        avatarUrl, nickName,
         joinDate: new Date(),
         lastSwitchDate: null,
         switchCount: 0,
