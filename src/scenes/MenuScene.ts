@@ -227,7 +227,7 @@ export class MenuScene extends Scene {
       if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
       if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
       // Face the movement direction (never swim backwards)
-      const dir = fish.vx > 0 ? 1 : -1
+      const dir = fish.vx > 0 ? -1 : 1
       const wiggle = 1 + Math.sin(now * 0.002 + fish.phase) * 0.04
       const wag = Math.sin(now * 0.003 + fish.phase) * 0.03
       fish.sprite.scale.x = dir * wiggle
