@@ -35,14 +35,17 @@ exports.main = async (event, context) => {
 
     // Increment pond daily clears
     const pond = await db.collection('pond_stats').where({ pondId, date }).get()
+    console.log('[contribute] pond_stats query:', { pondId, date, found: pond.data.length })
     if (pond.data.length === 0) {
       await db.collection('pond_stats').add({
         data: { pondId, date, dailyClears: 1, activeMembers: 1 }
       })
+      console.log('[contribute] pond_stats CREATED for', pondId, date)
     } else {
       await db.collection('pond_stats').where({ pondId, date }).update({
         data: { dailyClears: _.inc(1), activeMembers: _.inc(1) }
       })
+      console.log('[contribute] pond_stats UPDATED for', pondId, date)
     }
 
     // Get updated player data for feedback

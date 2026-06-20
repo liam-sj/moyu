@@ -9,7 +9,9 @@ exports.main = async (event, context) => {
     const date = todayStr()
 
     // Get today's pond stats ordered by dailyClears desc
+    console.log('[getPondRanking] query date=', date)
     const ponds = await db.collection('pond_stats').where({ date }).orderBy('dailyClears', 'desc').get()
+    console.log('[getPondRanking] found', ponds.data.length, 'ponds')
 
     const openId = cloud.getWXContext().OPENID
     let myPond = null
