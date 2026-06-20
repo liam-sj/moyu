@@ -17,6 +17,9 @@ export class MenuScene extends Scene {
   private _scrollMax = 0
   private _lastTouchX = 0
   private _lastTouchY = 0
+  private _touchStart: any = null
+  private _touchScrollStart: any = null
+  private _touchScrollMove: any = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -137,21 +140,24 @@ export class MenuScene extends Scene {
 
     // Touch scroll + track position for fish splash
     if (typeof wx !== 'undefined') {
-      wx.onTouchStart((e: any) => {
+      this._touchStart = (e: any) => {
         if (e.touches?.length) {
           this._lastTouchX = e.touches[0].clientX
           this._lastTouchY = e.touches[0].clientY
         }
-      })
+      }
+      wx.onTouchStart(this._touchStart)
       if (this._scrollMax > 0) {
         let startY = 0; let startScroll = 0
-        wx.onTouchStart((e: any) => { if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY } })
-        wx.onTouchMove((e: any) => {
+        this._touchScrollStart = (e: any) => { if (e.touches?.length) { startY = e.touches[0].clientY; startScroll = this._scrollY } }
+        this._touchScrollMove = (e: any) => {
           if (e.touches?.length && this._scrollCtn) {
             this._scrollY = Math.max(-this._scrollMax, Math.min(0, startScroll + e.touches[0].clientY - startY))
             this._scrollCtn.y = this._scrollY
           }
-        })
+        }
+        wx.onTouchStart(this._touchScrollStart)
+        wx.onTouchMove(this._touchScrollMove)
       }
     }
   }
@@ -169,6 +175,14 @@ export class MenuScene extends Scene {
         this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '···')
       }
     } catch {}
+  }
+
+  onDestroy(): void {
+    if (typeof wx !== 'undefined') {
+      if (this._touchStart) wx.offTouchStart(this._touchStart)
+      if (this._touchScrollStart) wx.offTouchStart(this._touchScrollStart)
+      if (this._touchScrollMove) wx.offTouchMove(this._touchScrollMove)
+    }
   }
 
   onUpdate(dt: number): void {
