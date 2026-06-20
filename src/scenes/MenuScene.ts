@@ -112,19 +112,20 @@ export class MenuScene extends Scene {
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      // Use native userInfo button for privacy-compliant auth
+      // Native userInfo button at top center
       if (typeof wx !== 'undefined' && !wx.getStorageSync('user_avatar')) {
+        const btnW = 140; const btnH = 36
         const btn = wx.createUserInfoButton({
           type: 'text',
-          text: '👤 授权头像',
-          style: { left: w/2 - 60, top: 20, width: 120, height: 30, fontSize: 14, backgroundColor: '#E67E22', color: '#FFFFFF', borderRadius: 4 }
+          text: '👤 授权获取头像昵称',
+          style: { left: (w - btnW) / 2, top: 5, width: btnW, height: btnH, fontSize: 13, lineHeight: btnH, backgroundColor: '#E67E22', color: '#FFFFFF', borderRadius: 18, textAlign: 'center' }
         })
         btn.onTap((res: any) => {
           if (res.userInfo?.avatarUrl) {
             wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
-            console.log('[MenuScene] 原生按钮获取头像成功:', res.userInfo.avatarUrl)
+            console.log('[MenuScene] 头像获取成功')
+            btn.destroy()
           }
-          btn.destroy()
         })
       }
       const c = getCachedPond()
