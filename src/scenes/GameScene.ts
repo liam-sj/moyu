@@ -11,6 +11,7 @@ import type {
   EliminatedEvent, SkillTriggeredEvent, GameOverEvent
 } from '../core/types'
 import { getCardColor } from '../core/Card'
+import { getCachedPond, setCachedPond } from '../config/ponds'
 import { log } from '../utils/Logger'
 
 const TAG = 'GameScene'
@@ -1139,10 +1140,41 @@ export class GameScene extends Scene {
   }
 
   private onGameOver(result: GameResult): void {
-    // Level 1 auto-advances to Level 2 on win — defer to avoid tearing down during event processing
-    if (result.won && result.levelId === 'level1') {
-      this._pendingTransition = { levelId: 'level2' }
-      return
+    if (result.won) {
+      // Check if player needs to select fish after clearing Level 2
+      if (this.levelId === 'level2' && !getCachedPond()) {
+        wx.setStorageSync('fish_selection_shown', true)
+        const { SelectFishScene } = require('./SelectFishScene')
+        this.manager.replace(new SelectFishScene())
+        return
+      }
+
+      // Set cleared level 2 flag
+      if (this.levelId === 'level2') {
+        wx.setStorageSync('cleared_level2', true)
+      }
+
+      // Report contribution
+      const cachedPond = getCachedPond()
+      if (cachedPond) {
+        wx.cloud.callFunction({
+          name: 'contribute',
+          data: {}
+        }).then((res: any) => {
+          if (res.result && res.result.ok) {
+            const d = res.result
+            setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
+            // Show brief feedback
+            wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
+          }
+        }).catch(() => {})
+      }
+
+      // Level 1 auto-advances to Level 2 on win
+      if (result.levelId === 'level1') {
+        this._pendingTransition = { levelId: 'level2' }
+        return
+      }
     }
     const { ResultOverlay } = require('./overlays/ResultOverlay')
     this.manager.push(new ResultOverlay(result, () => {
