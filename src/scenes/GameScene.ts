@@ -1172,8 +1172,18 @@ export class GameScene extends Scene {
         }
         if (existingAvatar) { tryContribute(existingAvatar) }
         else {
-          try { wx.getUserInfo({ success: (info: any) => { const url = info.userInfo.avatarUrl || ''; wx.setStorageSync('user_avatar', url); tryContribute(url) }, fail: () => tryContribute('') }) }
-          catch { tryContribute('') }
+          console.log('[GameScene] 无缓存头像, 尝试获取')
+          try {
+            wx.getUserInfo({
+              success: (info: any) => {
+                const url = (info?.userInfo?.avatarUrl) || ''
+                console.log('[GameScene] getUserInfo成功:', url)
+                if (url) { wx.setStorageSync('user_avatar', url); tryContribute(url) }
+                else { tryContribute('') }
+              },
+              fail: (err: any) => { console.log('[GameScene] getUserInfo失败:', JSON.stringify(err)); tryContribute('') }
+            })
+          } catch(e) { console.log('[GameScene] getUserInfo异常:', e); tryContribute('') }
         }
       }
 
