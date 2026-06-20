@@ -1154,9 +1154,9 @@ export class GameScene extends Scene {
         wx.setStorageSync('cleared_level2', true)
       }
 
-      // Report contribution with avatar
+      // Report contribution with avatar (only for Level 2 clears)
       const cachedPond = getCachedPond()
-      if (cachedPond) {
+      if (cachedPond && this.levelId === 'level2') {
         const doContribute = (avatarUrl: string) => {
           wx.cloud.callFunction({
             name: 'contribute',
