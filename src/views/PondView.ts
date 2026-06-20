@@ -104,6 +104,9 @@ export class PondView {
       if (Math.sqrt(dx * dx + dy * dy) < radius) {
         f.state = 'dash'
         f.stateTimer = 30 + Math.random() * 40
+        const angle = Math.random() * Math.PI * 2
+        f.vx = Math.cos(angle) * 0.6
+        f.vy = Math.sin(angle) * 0.6
       }
     }
   }
