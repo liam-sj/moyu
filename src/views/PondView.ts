@@ -8,7 +8,7 @@ export class PondView {
   private _bounds: { x: number; y: number; w: number; h: number }
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
-    this._bounds = { x: x + 8, y: y + 18, w: w - 20, h: h - 38 }
+    this._bounds = { x: 8, y: 18, w: w - 20, h: h - 38 }
     this.container.x = x
     this.container.y = y
 
@@ -56,7 +56,7 @@ export class PondView {
       const emoji = emojis[i % emojis.length]
       const f = new FishView(emoji,
         this._bounds.x + 10 + Math.random() * (this._bounds.w - 24),
-        this._bounds.y + 6 + Math.random() * (this._bounds.h - 16),
+        this._bounds.y + 4 + Math.random() * (this._bounds.h - 14),
         18 + Math.random() * 12
       )
       this._fish.push(f)
