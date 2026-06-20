@@ -33,23 +33,10 @@ export class MenuScene extends Scene {
     bg.endFill()
     this.container.addChild(bg)
 
-    // Title + subtitle
-    const title = new PIXI.Text('摸鱼大师', {
-      fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold', fill: '#F39C12', align: 'center',
-    } as any)
-    title.anchor.set(0.5); title.x = w / 2; title.y = 18
-    this.container.addChild(title)
-
-    const sub = new PIXI.Text('职场摸鱼三消挑战', {
-      fontFamily: 'sans-serif', fontSize: 11, fill: '#7FB3D8', align: 'center',
-    } as any)
-    sub.anchor.set(0.5); sub.x = w / 2; sub.y = 44
-    this.container.addChild(sub)
-
-    // My Pond bar
+    // My Pond bar (no title — just pond card)
     const cachedPond = getCachedPond()
     const pondCfg = cachedPond ? getPondById(cachedPond.pondId) : null
-    const barY = 60
+    const barY = 4
 
     if (pondCfg && cachedPond) {
       const bar = new PIXI.Graphics()
