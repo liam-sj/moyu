@@ -161,7 +161,8 @@ export class MenuScene extends Scene {
       // Water area tap → dash nearby fish
       const ox = pv.container.x + (this._scrollCtn?.x || 0)
       const oy = pv.container.y + (this._scrollCtn?.y || 0)
-      this.registerHitArea({ x: ox + 8, y: oy + 22, w: (w - 60) - 16, h: 210 - 26 }, () => {
+      const pw = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowWidth : 375) - 60
+      this.registerHitArea({ x: ox + 8, y: oy + 22, w: pw - 16, h: 210 - 26 }, () => {
         const lx = this._lastTouchX - ox
         const ly = this._lastTouchY - oy
         pv.dashNear(lx, ly, 60)
