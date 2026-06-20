@@ -125,18 +125,7 @@ export class MenuScene extends Scene {
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      // Create native user info button (always shows dialog)
-      if (typeof wx !== 'undefined' && !wx.getStorageSync('user_avatar')) {
-        const btn = wx.createUserInfoButton({
-          type: 'text',
-          text: '授权获取头像',
-          style: { left: 0, top: 0, width: 1, height: 1, backgroundColor: '#00000000' }
-        })
-        btn.onTap((res: any) => {
-          if (res.userInfo) wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
-          btn.destroy()
-        })
-      }
+      // Auth is done at fish selection time — not here
       const c = getCachedPond()
       if (!c) {
         const hl2 = wx.getStorageSync('cleared_level2')
@@ -178,6 +167,7 @@ export class MenuScene extends Scene {
     try {
       const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
       const data = (res as any).result
+      console.log('[MenuScene] getPondRanking返回', JSON.stringify({ ok: data?.ok, ponds: data?.fatPondRank?.length, contribs: data?.contributors ? Object.keys(data.contributors).length : 0 }))
       if (!data?.ok || !data.fatPondRank) return
       for (let i = 0; i < this._pondViews.length; i++) {
         const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)

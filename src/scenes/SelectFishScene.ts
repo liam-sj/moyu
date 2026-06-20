@@ -99,12 +99,29 @@ export class SelectFishScene extends Scene {
   }
 
   private async _doSelect(pond: PondConfig): Promise<void> {
+    // 关键节点1: 获取用户头像昵称
+    console.log('[SelectFish] 开始选鱼流程, pondId=', pond.id)
+    let avatarUrl = ''
+    try {
+      const infoRes: any = await new Promise((resolve) => {
+        wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
+      })
+      if (infoRes?.userInfo) {
+        avatarUrl = infoRes.userInfo.avatarUrl || ''
+        wx.setStorageSync('user_avatar', avatarUrl)
+        console.log('[SelectFish] 获取头像成功 avatarUrl=', avatarUrl)
+      } else {
+        console.log('[SelectFish] 获取头像失败，使用空值')
+      }
+    } catch (e) { console.log('[SelectFish] 获取头像异常', e) }
+
     try {
       const res = await wx.cloud.callFunction({
         name: 'selectFish',
-        data: { action: 'select', fishId: pond.fishId, pondId: pond.id }
+        data: { action: 'select', fishId: pond.fishId, pondId: pond.id, avatarUrl, nickName: infoRes?.userInfo?.nickName || '' }
       })
       const data = (res as any).result
+      console.log('[SelectFish] 云函数返回', JSON.stringify(data))
       if (data.ok) {
         setCachedPond({ pondId: pond.id, fishId: pond.fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
         // Return to menu

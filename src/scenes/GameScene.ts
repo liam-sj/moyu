@@ -1154,28 +1154,22 @@ export class GameScene extends Scene {
         wx.setStorageSync('cleared_level2', true)
       }
 
-      // Report contribution with avatar (only for Level 2 clears)
+      // Report contribution (only for Level 2 clears)
       const cachedPond = getCachedPond()
       if (cachedPond && this.levelId === 'level2') {
-        const doContribute = (avatarUrl: string) => {
-          wx.cloud.callFunction({
-            name: 'contribute',
-            data: { avatarUrl }
-          }).then((res: any) => {
-            if (res.result && res.result.ok) {
-              const d = res.result
-              setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
-              wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
-            }
-          }).catch(() => {})
-        }
-        // Avatar already authorized at start — just get it
-        try {
-          wx.getUserInfo({
-            success: (info: any) => doContribute(info.userInfo.avatarUrl || ''),
-            fail: () => doContribute('')
-          })
-        } catch { doContribute('') }
+        const avatarUrl = wx.getStorageSync('user_avatar') || ''
+        console.log('[GameScene] 贡献: level2通关, avatarUrl=', avatarUrl)
+        wx.cloud.callFunction({
+          name: 'contribute',
+          data: { avatarUrl }
+        }).then((res: any) => {
+          const d = (res as any).result
+          console.log('[GameScene] contribute返回', JSON.stringify(d))
+          if (d && d.ok) {
+            setCachedPond({ ...cachedPond, todayContribution: d.todayContribution })
+            wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 })
+          }
+        }).catch((e: any) => console.log('[GameScene] contribute失败', e))
       }
 
       // Check achievements
