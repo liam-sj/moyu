@@ -27,6 +27,7 @@
     "useCompilerPlugins": false
   },
   "compileType": "game",
+  "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "latest",
   "appid": "wxb121931b4b6f0f22",
   "projectname": "quickstart",
