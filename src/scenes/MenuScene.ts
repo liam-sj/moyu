@@ -11,6 +11,8 @@ export class MenuScene extends Scene {
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
+  private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
+  private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -97,25 +99,11 @@ export class MenuScene extends Scene {
       badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 4
       this.container.addChild(badgeTxt)
 
-      // Create swimming fish inside pond
-      const fishCount = 2 + (i % 4) // 2-5 fish per pond
-      const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
-      for (let f = 0; f < fishCount; f++) {
-        const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
-          fontFamily: 'sans-serif', fontSize: 12 + Math.random() * 8, align: 'center',
-        } as any)
-        sprite.anchor.set(0.5)
-        sprite.x = px + 10 + Math.random() * (pondW - 30)
-        sprite.y = py + 18 + Math.random() * (pondH - 28)
-        sprite.alpha = 0.7 + Math.random() * 0.3
-        this.container.addChild(sprite)
-        this._pondFish.push({
-          sprite,
-          vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
-          vy: (0.04 + Math.random() * 0.08) * (Math.random() > 0.5 ? 1 : -1),
-          pondX: px, pondY: py + 16, pondW: pondW - 4, pondH: pondH - 18,
-        })
-      }
+      // Store pond area for later fish spawning
+      this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
+
+      // Create initial placeholder fish
+      this._spawnPondFish(pond.id, px, py + 16, pondW - 4, pondH - 18, 2)
 
       // Hit area
       this._pondHitAreas.push({
@@ -134,6 +122,9 @@ export class MenuScene extends Scene {
     )
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
+    // Load real fish counts from cloud
+    this._loadRealCounts()
+
     this._startCallback = () => {
       const c = getCachedPond()
       if (!c) {
@@ -147,6 +138,47 @@ export class MenuScene extends Scene {
       const { GameScene } = require('./GameScene')
       this.manager.replace(new GameScene(), { levelId: 'level1' })
     }
+  }
+
+  private _spawnPondFish(pondId: string, px: number, py: number, pw: number, ph: number, count: number): void {
+    const fishEmojis = ['🐟', '🐠', '🐡', '🦐']
+    const actualCount = Math.min(count, 10) // cap at 10 fish per pond
+    for (let f = 0; f < actualCount; f++) {
+      const sprite = new PIXI.Text(fishEmojis[f % fishEmojis.length], {
+        fontFamily: 'sans-serif', fontSize: 12 + Math.random() * 8, align: 'center',
+      } as any)
+      sprite.anchor.set(0.5)
+      sprite.x = px + 8 + Math.random() * (pw - 20)
+      sprite.y = py + 4 + Math.random() * (ph - 12)
+      sprite.alpha = 0.7 + Math.random() * 0.3
+      this.container.addChild(sprite)
+      this._pondFish.push({
+        sprite,
+        vx: (0.1 + Math.random() * 0.2) * (Math.random() > 0.5 ? 1 : -1),
+        vy: (0.04 + Math.random() * 0.08) * (Math.random() > 0.5 ? 1 : -1),
+        pondX: px, pondY: py, pondW: pw, pondH: ph,
+      })
+    }
+  }
+
+  private async _loadRealCounts(): Promise<void> {
+    try {
+      const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
+      const data = (res as any).result
+      if (!data?.ok || !data.fatPondRank) return
+      this._pondData = data.fatPondRank
+
+      // Clear placeholder fish
+      for (const f of this._pondFish) { this.container.removeChild(f.sprite); f.sprite.destroy() }
+      this._pondFish = []
+
+      // Re-spawn fish with real counts
+      for (const area of this._pondAreas) {
+        const info = this._pondData.find(d => d.pondId === area.pondId)
+        const count = info ? Math.max(0, Math.round(info.dailyClears / 5)) : 2
+        this._spawnPondFish(area.pondId, area.px, area.py + 16, area.pondW, area.pondH - 18, count || 2)
+      }
+    } catch {}
   }
 
   onUpdate(dt: number): void {
