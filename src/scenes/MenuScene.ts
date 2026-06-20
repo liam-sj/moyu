@@ -10,7 +10,7 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
-  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
+  private _pondFish: Array<{ sprite: PIXI.Text; vx: number; vy: number; phase: number; pondX: number; pondY: number; pondW: number; pondH: number }> = []
   private _pondData: Array<{ pondId: string; dailyClears: number; rank: number }> = []
   private _pondAreas: Array<{ px: number; py: number; pondW: number; pondH: number; pondId: string }> = []
   private _scrollCtn: PIXI.Container | null = null
@@ -180,6 +180,7 @@ export class MenuScene extends Scene {
       this._pondFish.push({
         sprite,
         vx: (0.15 + Math.random() * 0.3) * (Math.random() > 0.5 ? 1 : -1),
+        vy: (0.06 + Math.random() * 0.12) * (Math.random() > 0.5 ? 1 : -1),
         phase: Math.random() * Math.PI * 2,
         pondX: px, pondY: py, pondW: pw, pondH: ph,
       })
@@ -221,12 +222,14 @@ export class MenuScene extends Scene {
     const now = Date.now()
     for (const fish of this._pondFish) {
       fish.sprite.x += fish.vx * dt
-      // Bounce off horizontal edges
+      fish.sprite.y += fish.vy * dt
+      // Bounce off all edges
       if (fish.sprite.x < fish.pondX + 18 || fish.sprite.x > fish.pondX + fish.pondW - 24) fish.vx *= -1
-      // Slow body wiggle + tail wag
+      if (fish.sprite.y < fish.pondY + 14 || fish.sprite.y > fish.pondY + fish.pondH - 18) fish.vy *= -1
+      // Face the movement direction (never swim backwards)
+      const dir = fish.vx > 0 ? 1 : -1
       const wiggle = 1 + Math.sin(now * 0.002 + fish.phase) * 0.04
       const wag = Math.sin(now * 0.003 + fish.phase) * 0.03
-      const dir = fish.vx > 0 ? 1 : -1
       fish.sprite.scale.x = dir * wiggle
       fish.sprite.scale.y = 1 / wiggle
       fish.sprite.rotation = wag
