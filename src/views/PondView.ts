@@ -21,6 +21,14 @@ export class PondView {
     bg.drawRoundedRect(0, 0, w, h, 10)
     this.container.addChild(bg)
 
+    // Clip mask so fish can't render outside pond
+    const mask = new PIXI.Graphics()
+    mask.beginFill(0xFFFFFF)
+    mask.drawRoundedRect(0, 0, w, h, 10)
+    mask.endFill()
+    this.container.addChild(mask)
+    this.container.mask = mask
+
     // Rank badge
     const medals = ['🥇', '🥈', '🥉']
     const rankStr = rank < 3 ? medals[rank] : `${rank + 1}`
