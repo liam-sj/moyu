@@ -57,19 +57,19 @@ export class FishView {
     else if (this.state === 'turn') speedMul = 0.3
 
     this.container.x += this.vx * dt * speedMul
-    this.sprite.y += this.vy * dt * speedMul
+    this.container.y += this.vy * dt * speedMul
 
     // Bounce + dash when hitting edge
-    const bounced = this.container.x < bounds.x + 18 || this.container.x > bounds.x + bounds.w - 24 ||
-                    this.sprite.y < bounds.y + 14 || this.sprite.y > bounds.y + bounds.h - 18
+    const bounced = this.container.x < bounds.x + 28 || this.container.x > bounds.x + bounds.w - 34 ||
+                    this.container.y < bounds.y + 28 || this.container.y > bounds.y + bounds.h - 30
     if (bounced) {
       this.state = 'dash'
       this.stateTimer = 20 + Math.random() * 30
     }
-    if (this.container.x < bounds.x + 18) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + 19 }
-    if (this.container.x > bounds.x + bounds.w - 24) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - 25 }
-    if (this.sprite.y < bounds.y + 14) { this.vy = Math.abs(this.vy); this.sprite.y = bounds.y + 15 }
-    if (this.sprite.y > bounds.y + bounds.h - 18) { this.vy = -Math.abs(this.vy); this.sprite.y = bounds.y + bounds.h - 19 }
+    if (this.container.x < bounds.x + 28) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + 29 }
+    if (this.container.x > bounds.x + bounds.w - 34) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - 35 }
+    if (this.container.y < bounds.y + 28) { this.vy = Math.abs(this.vy); this.container.y = bounds.y + 29 }
+    if (this.container.y > bounds.y + bounds.h - 30) { this.vy = -Math.abs(this.vy); this.container.y = bounds.y + bounds.h - 31 }
 
     // Body animation
     const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1
