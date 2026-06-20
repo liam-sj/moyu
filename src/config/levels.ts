@@ -21,17 +21,16 @@ export const LEVELS: Record<string, LevelConfig> = {
   level2: {
     id: 'level2',
     name: '第二关·地狱',
-    normalCardTypes: 6,        // 6种卡：3种常见+3种稀有，高分散难凑齐
-    funcCardCount: 12,         // 功能卡（约18%）
-    funcTypes: ['negative', 'positive', 'dual'],
-    funcRatio: { negative: 0.7, positive: 0.1, dual: 0.2 },
-    layers: 10,                // 10层金字塔：5层底+5层聚集
+    normalCardTypes: 4,        // DEV: 仅4种卡
+    funcCardCount: 0,          // DEV: 无功能卡
+    funcTypes: [],
+    layers: 5,                 // DEV: 5层
     gridRows: 5,
-    gridCols: 6,               // 6×5=30格
-    totalCards: 84,            // 24+18+13+10+7+4+3+2+2+1=84, 28组消除
-    steps: 85,                 // 84张卡+1步容错
-    slotLimit: 6,
-    layerCards: [24, 18, 13, 10, 7, 4, 3, 2, 2, 1],
+    gridCols: 6,
+    totalCards: 66,
+    steps: 150,                // DEV: 超充裕
+    slotLimit: 8,
+    layerCards: [24, 18, 12, 8, 4],
     clusterLayers: [5, 6, 7, 8, 9],  // 顶层5层：3簇聚集，几乎重叠
     gapRatio: 0.08,
   },
