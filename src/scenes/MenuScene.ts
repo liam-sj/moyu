@@ -96,6 +96,9 @@ export class MenuScene extends Scene {
     // Load real counts
     this._loadRealCounts()
 
+    // Load user avatar and show on ponds
+    this._loadAvatar()
+
     // Button
     const btnW = 200; const btnH = 44
     const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h - 60), btnW, btnH, '开始摸鱼', {
@@ -138,6 +141,24 @@ export class MenuScene extends Scene {
     }
   }
 
+  private _loadAvatar(): void {
+    if (typeof wx === 'undefined') return
+    try {
+      wx.getSetting({
+        success: (res: any) => {
+          if (res.authSetting['scope.userInfo']) {
+            wx.getUserInfo({
+              success: (info: any) => {
+                const url = info.userInfo.avatarUrl
+                for (const pv of this._pondViews) pv.setAvatar(url)
+              }
+            })
+          }
+        }
+      })
+    } catch {}
+  }
+
   private async _loadRealCounts(): Promise<void> {
     try {
       const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
@@ -158,7 +179,7 @@ export class MenuScene extends Scene {
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
-      const gp = pv.container.getGlobalPosition()
+      const gp = (pv.container as any).getGlobalPosition()
       for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 15)
     }
   }

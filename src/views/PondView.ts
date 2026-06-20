@@ -8,6 +8,8 @@ export class PondView {
   private _bounds: { x: number; y: number; w: number; h: number }
   /** Register per-fish hit areas for tap-to-dash */
   fishHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _avatarSprite: PIXI.Sprite | null = null
+  private _avatarUrl: string = ''
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
     this._bounds = { x: 8, y: 18, w: w - 20, h: h - 38 }
@@ -132,6 +134,27 @@ export class PondView {
   setBadge(text: string): void {
     const b = (this as any)._badgeTxt as PIXI.Text
     if (b) b.text = text
+  }
+
+  /** Load and display user avatar above fish area */
+  setAvatar(url: string): void {
+    if (!url || url === this._avatarUrl) return
+    this._avatarUrl = url
+    if (this._avatarSprite) { this.container.removeChild(this._avatarSprite); this._avatarSprite.destroy() }
+    const img = wx.createImage()
+    img.onload = () => {
+      const canvas = wx.createCanvas()
+      canvas.width = 24; canvas.height = 24
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+      ctx.beginPath(); ctx.arc(12, 12, 12, 0, Math.PI * 2); ctx.clip()
+      ctx.drawImage(img, 0, 0, 24, 24)
+      const tex = PIXI.Texture.from(canvas)
+      this._avatarSprite = new PIXI.Sprite(tex)
+      this._avatarSprite.x = 36; this._avatarSprite.y = 18
+      this._avatarSprite.width = 20; this._avatarSprite.height = 20
+      this.container.addChild(this._avatarSprite)
+    }
+    img.src = url
   }
 
   destroy(): void {
