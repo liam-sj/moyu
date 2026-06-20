@@ -51,7 +51,18 @@
   },
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "glob", "value": "cloudfunctions/**" },
+      { "type": "glob", "value": "docs/**" },
+      { "type": "glob", "value": ".git/**" },
+      { "type": "glob", "value": "node_modules/**" },
+      { "type": "glob", "value": "src/**" },
+      { "type": "glob", "value": "*.md" },
+      { "type": "glob", "value": "package-lock.json" },
+      { "type": "glob", "value": "pnpm-lock.yaml" },
+      { "type": "glob", "value": "tsconfig.json" },
+      { "type": "glob", "value": ".eslintrc.js" }
+    ],
     "include": []
   },
   "isGameTourist": false,

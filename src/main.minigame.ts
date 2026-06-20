@@ -1,11 +1,6 @@
 import { installPolyfills, getMainCanvas } from './platform/PixiAdapter'
 installPolyfills()
 
-// ── 云开发初始化 ──
-if (typeof wx !== 'undefined' && wx.cloud) {
-  wx.cloud.init({ env: 'cloud1-d5gtuwnx0aacd8adb' })
-}
-
 import * as PIXI from 'pixi.js-legacy'
 
 // ── PixiJS 微信补丁 ──
@@ -50,5 +45,12 @@ app.ticker.add(() => {
   manager.update(app.ticker.deltaMS / (1000 / 60))
   app.renderer.render(app.stage)
 })
+
+// ── 云开发初始化（延迟到 app 创建后，避免阻塞启动）──
+try {
+  if (typeof wx !== 'undefined' && wx.cloud) {
+    wx.cloud.init({ env: 'cloud1-d5gtuwnx0aacd8adb' })
+  }
+} catch (e) { console.warn('[cloud] init failed', e) }
 
 manager.push(new MenuScene())
