@@ -28,7 +28,7 @@ exports.main = async (event) => {
     })
   } else {
     await db.collection('pond_stats').where({ pondId, date }).update({
-      data: { dailyClears: _.inc(1) }
+      data: { dailyClears: _.inc(1), activeMembers: _.inc(1) }
     })
   }
 

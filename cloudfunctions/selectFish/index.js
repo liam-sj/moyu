@@ -23,9 +23,16 @@ exports.main = async (event) => {
         totalContribution: { [pondId]: 0 }
       }
     })
-    await db.collection('pond_stats').where({ pondId, date: todayStr() }).update({
-      data: { totalMembers: _.inc(1) }
-    })
+    const todayRecord = await db.collection('pond_stats').where({ pondId, date: todayStr() }).get()
+    if (todayRecord.data.length === 0) {
+      await db.collection('pond_stats').add({
+        data: { pondId, date: todayStr(), dailyClears: 0, activeMembers: 0, totalMembers: 1 }
+      })
+    } else {
+      await db.collection('pond_stats').doc(todayRecord.data[0]._id).update({
+        data: { totalMembers: _.inc(1) }
+      })
+    }
     return { ok: true }
   }
 
