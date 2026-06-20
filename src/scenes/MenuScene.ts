@@ -10,6 +10,8 @@ export class MenuScene extends Scene {
   private _shareHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _fishSprites: Array<{ sprite: PIXI.Text; x: number; y: number; speed: number; amp: number; phase: number }> = []
+  private _fishContainer: PIXI.Container | null = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -87,6 +89,30 @@ export class MenuScene extends Scene {
     this.container.addChild(rankTitle)
 
     this._renderPondList(w, rankY + 22)
+
+    // ── Swimming fish background animation ──
+    this._fishContainer = new PIXI.Container()
+    this.container.addChildAt(this._fishContainer, 1) // above background, below content
+    this._fishSprites = []
+    const fishEmojis = ['🐟', '🐠', '🐡', '🦐', '🐬', '🦑']
+    for (let i = 0; i < 8; i++) {
+      const emoji = fishEmojis[i % fishEmojis.length]
+      const sprite = new PIXI.Text(emoji, {
+        fontFamily: 'sans-serif', fontSize: 20 + Math.random() * 16, align: 'center',
+      } as any)
+      sprite.anchor.set(0.5)
+      sprite.x = Math.random() * w
+      sprite.y = h * 0.15 + Math.random() * h * 0.50
+      sprite.alpha = 0.20 + Math.random() * 0.15
+      this._fishContainer.addChild(sprite)
+      const dir = i % 2 === 0 ? 1 : -1  // half swim left, half right
+      this._fishSprites.push({
+        sprite, x: sprite.x, y: sprite.y,
+        speed: (0.12 + Math.random() * 0.25) * dir,
+        amp: 12 + Math.random() * 25,
+        phase: Math.random() * Math.PI * 2,
+      })
+    }
 
     // ── Start Button ──
     const btnW = 200, btnH = 50
@@ -189,7 +215,7 @@ export class MenuScene extends Scene {
     } catch {}
   }
 
-  onUpdate(_dt: number): void {
+  onUpdate(dt: number): void {
     if (this._startHitArea && this._startCallback) {
       this.registerHitArea(this._startHitArea, this._startCallback, 10)
     }
@@ -198,6 +224,18 @@ export class MenuScene extends Scene {
     }
     for (const item of this._pondHitAreas) {
       this.registerHitArea(item.rect, item.cb, 12)
+    }
+
+    // Animate swimming fish
+    const sw = (typeof wx !== 'undefined') ? wx.getSystemInfoSync().windowWidth : 375
+    for (const fish of this._fishSprites) {
+      fish.x += fish.speed * dt
+      fish.sprite.x = fish.x
+      fish.sprite.y = fish.y + Math.sin(Date.now() * 0.002 + fish.phase) * fish.amp
+      fish.sprite.scale.x = fish.speed > 0 ? 1 : -1
+      // Wrap around edges
+      if (fish.x > sw + 40) fish.x = -40
+      if (fish.x < -40) fish.x = sw + 40
     }
   }
 }
