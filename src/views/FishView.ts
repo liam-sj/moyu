@@ -55,9 +55,11 @@ export class FishView {
     this.sprite.x += this.vx * dt * speedMul
     this.sprite.y += this.vy * dt * speedMul
 
-    // Bounce
-    if (this.sprite.x < bounds.x + 18 || this.sprite.x > bounds.x + bounds.w - 24) this.vx *= -1
-    if (this.sprite.y < bounds.y + 14 || this.sprite.y > bounds.y + bounds.h - 18) this.vy *= -1
+    // Bounce with nudge to prevent edge oscillation
+    if (this.sprite.x < bounds.x + 18) { this.vx = Math.abs(this.vx); this.sprite.x = bounds.x + 19 }
+    if (this.sprite.x > bounds.x + bounds.w - 24) { this.vx = -Math.abs(this.vx); this.sprite.x = bounds.x + bounds.w - 25 }
+    if (this.sprite.y < bounds.y + 14) { this.vy = Math.abs(this.vy); this.sprite.y = bounds.y + 15 }
+    if (this.sprite.y > bounds.y + bounds.h - 18) { this.vy = -Math.abs(this.vy); this.sprite.y = bounds.y + bounds.h - 19 }
 
     // Body animation
     const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1
