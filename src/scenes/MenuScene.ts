@@ -181,10 +181,10 @@ export class MenuScene extends Scene {
       if (!data?.ok || !data.fatPondRank) return
       for (let i = 0; i < this._pondViews.length; i++) {
         const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)
-        const count = info ? Math.max(3, Math.round(info.dailyClears / 3)) : 5
-        const contribs = data.contributors ? data.contributors[PONDS[i].id] : undefined
-        this._pondViews[i].spawnFish(count, contribs)
-        this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '···')
+        const count = info ? Math.max(1, Math.round(info.dailyClears / 3)) : 0
+        const contribs = (data.contributors && data.contributors[PONDS[i].id]?.length) ? data.contributors[PONDS[i].id] : undefined
+        if (count > 0) this._pondViews[i].spawnFish(count, contribs)
+        this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '0条')
       }
     } catch {}
   }
