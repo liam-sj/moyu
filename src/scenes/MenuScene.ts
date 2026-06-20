@@ -66,15 +66,14 @@ export class MenuScene extends Scene {
       this.container.addChild(prompt)
     }
 
-    // ── 12 Fish Ponds (3 columns × 4 rows grid) ──
-    const cols = 3; const pondW = Math.floor((w - 32) / cols); const pondH = 95
-    const gridY = barY + 40; const gap = 6
+    // ── 12 Fish Ponds (single column, sorted by rank) ──
+    const pondW = w - 24; const pondH = 36; const gap = 3
+    const gridY = barY + 40
 
     for (let i = 0; i < PONDS.length; i++) {
       const pond = PONDS[i]
-      const col = i % cols; const row = Math.floor(i / cols)
-      const px = 8 + col * pondW + (col > 0 ? gap : 0)
-      const py = gridY + row * (pondH + gap)
+      const px = 12
+      const py = gridY + i * (pondH + gap)
 
       // Pond background (water color)
       const pondBg = new PIXI.Graphics()
@@ -85,25 +84,26 @@ export class MenuScene extends Scene {
       pondBg.drawRoundedRect(px, py, pondW - 4, pondH, 10)
       this.container.addChild(pondBg)
 
-      // Pond name
-      const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
-        fontFamily: 'sans-serif', fontSize: 10, fontWeight: 'bold', fill: '#FFFFFF',
+      // Pond name + rank
+      const rankStr = i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}`
+      const nameTxt = new PIXI.Text(`${rankStr} ${pond.emoji} ${pond.name}`, {
+        fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
-      nameTxt.x = px + 4; nameTxt.y = py + 3
+      nameTxt.x = px + 4; nameTxt.y = py + 9
       this.container.addChild(nameTxt)
 
       // Fish count badge
       const badgeTxt = new PIXI.Text('···', {
         fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
       } as any)
-      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 4
+      badgeTxt.anchor.set(1, 0); badgeTxt.x = px + pondW - 8; badgeTxt.y = py + 11
       this.container.addChild(badgeTxt)
 
       // Store pond area for later fish spawning
       this._pondAreas.push({ px, py, pondW: pondW - 4, pondH, pondId: pond.id })
 
       // Create initial placeholder fish
-      this._spawnPondFish(pond.id, px, py + 16, pondW - 4, pondH - 18, 2)
+      this._spawnPondFish(pond.id, px + 90, py + 4, pondW - 130, pondH - 8, 2)
 
       // Hit area
       this._pondHitAreas.push({
@@ -114,7 +114,7 @@ export class MenuScene extends Scene {
 
     // Start button
     const btnW = 200, btnH = 44
-    const btnY = gridY + 4 * (pondH + gap) + 12
+    const btnY = gridY + PONDS.length * (pondH + gap) + 10
     const btn = new Button(
       Math.floor((w - btnW) / 2), Math.floor(btnY), btnW, btnH,
       '开始摸鱼',
@@ -176,7 +176,7 @@ export class MenuScene extends Scene {
       for (const area of this._pondAreas) {
         const info = this._pondData.find(d => d.pondId === area.pondId)
         const count = info ? Math.max(0, Math.round(info.dailyClears / 5)) : 2
-        this._spawnPondFish(area.pondId, area.px, area.py + 16, area.pondW, area.pondH - 18, count || 2)
+        this._spawnPondFish(area.pondId, area.px + 90, area.py + 4, area.pondW - 130, area.pondH - 8, count || 2)
       }
     } catch {}
   }
