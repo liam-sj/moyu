@@ -1143,7 +1143,7 @@ export class GameScene extends Scene {
     if (result.won) {
       // Check if player needs to select fish after clearing Level 2
       if (this.levelId === 'level2' && !getCachedPond()) {
-        wx.setStorageSync('fish_selection_shown', true)
+        wx.cloud.callFunction({ name: 'updateAvatar', data: { fishSelectionShown: true } })
         const { SelectFishScene } = require('./SelectFishScene')
         this.manager.replace(new SelectFishScene())
         return
@@ -1151,7 +1151,7 @@ export class GameScene extends Scene {
 
       // Set cleared level 2 flag
       if (this.levelId === 'level2') {
-        wx.setStorageSync('cleared_level2', true)
+        wx.cloud.callFunction({ name: 'updateAvatar', data: { clearedLevel2: true } })
       }
 
       // Report contribution (only for Level 2 clears)
@@ -1159,32 +1159,15 @@ export class GameScene extends Scene {
       console.log('[GameScene] onGameOver won=true levelId=', this.levelId, 'cachedPond=', !!cachedPond)
       if (cachedPond && this.levelId === 'level2') {
         // Try storage first, fallback to getUserInfo
-        const existingAvatar = wx.getStorageSync('user_avatar') || ''
-        const tryContribute = (avatarUrl: string) => {
-          console.log('[GameScene] 贡献: avatarUrl=', avatarUrl)
-          wx.cloud.callFunction({
-            name: 'contribute',
-            data: { avatarUrl }
-          }).then((res: any) => {
-            const d = (res as any).result; console.log('[GameScene] contribute返回', JSON.stringify(d))
-            if (d && d.ok) { setCachedPond({ ...cachedPond, todayContribution: d.todayContribution }); wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 }) }
-          }).catch((e: any) => console.log('[GameScene] contribute失败', e))
-        }
-        if (existingAvatar) { tryContribute(existingAvatar) }
-        else {
-          console.log('[GameScene] 无缓存头像, 尝试获取')
-          try {
-            wx.getUserInfo({
-              success: (info: any) => {
-                const url = (info?.userInfo?.avatarUrl) || ''
-                console.log('[GameScene] getUserInfo成功:', url)
-                if (url) { wx.setStorageSync('user_avatar', url); tryContribute(url) }
-                else { tryContribute('') }
-              },
-              fail: (err: any) => { console.log('[GameScene] getUserInfo失败:', JSON.stringify(err)); tryContribute('') }
-            })
-          } catch(e) { console.log('[GameScene] getUserInfo异常:', e); tryContribute('') }
-        }
+        // Use cloud avatar if available, fallback to local storage
+        // Contribute — avatar is already in cloud from selectFish, no local storage needed
+        wx.cloud.callFunction({
+          name: 'contribute',
+          data: {}  // contribute reads avatarUrl from player_ponds record
+        }).then((res: any) => {
+          const d = (res as any).result; console.log('[GameScene] contribute返回', JSON.stringify(d))
+          if (d && d.ok) { setCachedPond({ ...cachedPond, todayContribution: d.todayContribution }); wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 }) }
+        }).catch((e: any) => console.log('[GameScene] contribute失败', e))
       }
 
       // Check achievements

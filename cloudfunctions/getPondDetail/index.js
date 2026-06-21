@@ -21,12 +21,8 @@ exports.main = async (event, context) => {
     const allPonds = await db.collection('pond_stats').where({ date }).orderBy('dailyClears', 'desc').get()
     const rank = allPonds.data.findIndex(p => p.pondId === pondId) + 1
 
-    // Get top 10 contributors to this pond today
-    const heroes = await db.collection('player_ponds')
-      .where({ pondId })
-      .orderBy('todayContribution', 'desc')
-      .limit(10)
-      .get()
+    // Contributors come from pond_stats directly
+    const heroes = (stat.contributors || []).sort((a, b) => b.count - a.count).slice(0, 10)
 
     // Get streak data for this pond
     const streakResult = await db.collection('pond_streaks').where({ pondId }).get()
@@ -47,15 +43,13 @@ exports.main = async (event, context) => {
       pondName: POND_NAMES[pondId] || pondId,
       fishEmoji: FISH_EMOJIS[pondId] || '🐟',
       rank: rank > 0 ? rank : allPonds.data.length + 1,
-      dailyClears: stat.dailyClears,
-      activeMembers: stat.activeMembers,
-      totalMembers: stat.totalMembers,
-      perCapita: stat.activeMembers > 0 ? Math.round((stat.dailyClears / stat.activeMembers) * 100) / 100 : 0,
+      dailyClears: stat.dailyClears || 0,
+      activeMembers: (stat.uniquePlayers || []).length,
+      totalMembers: stat.totalMembers || 0,
+      perCapita: stat.uniquePlayers?.length > 0 ? Math.round((stat.dailyClears / stat.uniquePlayers.length) * 100) / 100 : 0,
       streakDays,
       myContribution,
-      heroes: heroes.data.map(h => ({
-        todayClears: h.todayContribution
-      }))
+      heroes: heroes.map(h => ({ nickName: h.nickName, avatarUrl: h.avatarUrl, todayClears: h.count }))
     }
   } catch (err) {
     console.error('[getPondDetail]', err)

@@ -23,7 +23,10 @@ exports.main = async (event, context) => {
         myPond = {
           pondId: p.pondId, fishId: p.fishId,
           rank, todayContribution: p.todayContribution,
-          joinDate: p.joinDate, switchCount: p.switchCount
+          joinDate: p.joinDate, switchCount: p.switchCount,
+          avatarUrl: p.avatarUrl || '', nickName: p.nickName || '',
+          fishSelectionShown: p.fishSelectionShown || false,
+          clearedLevel2: p.clearedLevel2 || false
         }
       }
     }
@@ -41,7 +44,7 @@ exports.main = async (event, context) => {
     // 2. 人均摸鱼王 (per capita rank - by dailyClears / activeMembers)
     const pondsWithPerCapita = ponds.data.map(p => ({
       ...p,
-      perCapita: p.activeMembers > 0 ? p.dailyClears / p.activeMembers : 0
+      perCapita: p.uniquePlayers?.length > 0 ? p.dailyClears / p.uniquePlayers.length : 0
     })).sort((a, b) => b.perCapita - a.perCapita)
 
     const perCapitaRank = pondsWithPerCapita.slice(0, 12).map((p, i) => ({
@@ -64,18 +67,12 @@ exports.main = async (event, context) => {
       fishEmoji: FISH_EMOJIS[s.pondId] || '🐟'
     }))
 
-    // Get contributor avatars per pond
-    const pondIds = POND_IDS
+    // Contributors are now stored directly in pond_stats documents
     const contributors = {}
-    for (const pid of pondIds) {
-      const topPlayers = await db.collection('player_ponds')
-        .where({ pondId: pid, todayContribution: _.gt(0) })
-        .orderBy('todayContribution', 'desc')
-        .limit(5)
-        .get()
-      contributors[pid] = topPlayers.data
-        .filter(p => p.avatarUrl)
-        .map(p => ({ url: p.avatarUrl, count: p.todayContribution }))
+    for (const p of ponds.data) {
+      contributors[p.pondId] = (p.contributors || []).map(c => ({
+        url: c.avatarUrl || '', openId: c.openId, nickName: c.nickName || '', count: c.count
+      }))
     }
 
     return {

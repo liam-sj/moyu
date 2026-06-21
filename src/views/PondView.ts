@@ -6,28 +6,38 @@ export class PondView {
   readonly container = new PIXI.Container()
   private _fish: FishView[] = []
   private _bounds: { x: number; y: number; w: number; h: number }
+  private _pondConfig: PondConfig
   /** Register per-fish hit areas for tap-to-dash */
   fishHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _avatarSprites: PIXI.Container[] = []
+  private _announceFish: FishView | null = null
+  private _announceBubble: PIXI.Text | null = null
+  private _announceTexts = [
+    '🐟 通关第二关加入鱼塘！',
+    '🏆 为你的鱼塘争光！',
+    '🐠 点击小鱼会冲刺哦',
+    '🔥 连续通关霸榜吧！',
+  ]
+  private _announceIdx = 0
+  private _announceTimer = 0
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
-    this._bounds = { x: 8, y: 18, w: w - 20, h: h - 38 }
+    this._pondConfig = pond
+    this._bounds = { x: 8, y: Math.floor(h * 0.67), w: w - 20, h: Math.floor(h * 0.33) - 8 }
     this.container.x = x
     this.container.y = y
 
-    // Pond background
-    const bg = new PIXI.Graphics()
-    bg.beginFill(pond.colorInt, 0.20)
-    bg.drawRoundedRect(0, 0, w, h, 10)
-    bg.endFill()
-    bg.lineStyle(1.5, pond.colorInt, 0.4)
-    bg.drawRoundedRect(0, 0, w, h, 10)
-    this.container.addChild(bg)
+    // Pond background (transparent — home page bg handles the visuals)
+    const pondBg = new PIXI.Graphics()
+    pondBg.beginFill(0x000000, 0.10)
+    pondBg.drawRoundedRect(0, 0, w, h, 10)
+    pondBg.endFill()
+    this.container.addChildAt(pondBg, 0)
 
-    // Clip mask so fish can't render outside pond
+    // Clip mask so fish stay within water area
     const mask = new PIXI.Graphics()
     mask.beginFill(0xFFFFFF)
-    mask.drawRoundedRect(0, 0, w, h, 10)
+    mask.drawRect(0, 0, w, h)
     mask.endFill()
     this.container.addChild(mask)
     this.container.mask = mask
@@ -41,6 +51,7 @@ export class PondView {
     } as any)
     rankTxt.x = 4; rankTxt.y = 3
     this.container.addChild(rankTxt)
+    ;(this as any)._rankTxt = rankTxt
 
     // Pond name
     const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
@@ -58,22 +69,44 @@ export class PondView {
     ;(this as any)._badgeTxt = badgeTxt
   }
 
+  /** Create the announcement fish with speech bubble */
+  private _spawnAnnouncer(): void {
+    if (this._announceFish) return
+    // Special fish emoji (gold)
+    const f = new FishView('jianyu', 0,  // 剑鱼=鲨鱼造型
+      this._bounds.x + this._bounds.w / 2,
+      this._bounds.y + this._bounds.h / 2,
+      24
+    )
+    this._announceFish = f
+    this.container.addChild(f.container)
+
+    // Speech bubble text
+    const bubbleTxt = new PIXI.Text(this._announceTexts[0], {
+      fontFamily: 'sans-serif', fontSize: 10, fill: '#FFFFFF',
+      backgroundColor: '#333333', backgroundAlpha: 0.75,
+    } as any)
+    bubbleTxt.anchor.set(0.5)
+    bubbleTxt.x = 0; bubbleTxt.y = -28
+    f.container.addChild(bubbleTxt)
+    this._announceBubble = bubbleTxt
+  }
+
   /** Spawn fish with given count */
   spawnFish(count: number, contributors?: Array<{ url: string; count: number }>): void {
+    this._spawnAnnouncer()
     this.clearFish()
     this.fishHitAreas = []
     const max = Math.min(count, 30)
-    const emojis = ['🐟', '🐠', '🐡', '🦐']
     const avatarList: string[] = []
     if (contributors) {
       for (const c of contributors) for (let j = 0; j < Math.min(c.count, max); j++) avatarList.push(c.url)
     }
     for (let i = 0; i < max; i++) {
-      const emoji = emojis[i % emojis.length]
-      const f = new FishView(emoji,
-        this._bounds.x + 10 + Math.random() * (this._bounds.w - 24),
-        this._bounds.y + 14 + Math.random() * (this._bounds.h - 28),
-        18 + Math.random() * 12
+      const f = new FishView(this._pondConfig.fishId, i,
+        this._bounds.x + 10 + ((i * 47 + 13) % Math.max(1, this._bounds.w - 24)),
+        this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28)),
+        28 + ((i * 19 + 5) % 10)
       )
       if (i < avatarList.length) f.setAvatar(avatarList[i])
       this._fish.push(f)
@@ -133,11 +166,29 @@ export class PondView {
 
   updateFish(dt: number): void {
     for (const f of this._fish) f.update(dt, this._bounds)
+    // Announcement fish swims and updates bubble
+    if (this._announceFish) {
+      this._announceFish.update(dt, this._bounds)
+      this._announceTimer += dt
+      if (this._announceTimer > 240) {
+        this._announceTimer = 0
+        this._announceIdx = (this._announceIdx + 1) % this._announceTexts.length
+        if (this._announceBubble) this._announceBubble.text = this._announceTexts[this._announceIdx]
+      }
+    }
   }
 
   setBadge(text: string): void {
     const b = (this as any)._badgeTxt as PIXI.Text
     if (b) b.text = text
+  }
+
+  updateRank(rank: number): void {
+    const rt = (this as any)._rankTxt as PIXI.Text
+    if (!rt) return
+    const medals = ['🥇', '🥈', '🥉']
+    rt.text = rank < 3 ? medals[rank] : `${rank + 1}`
+    rt.style.fill = rank < 3 ? '#F1C40F' : '#FFFFFF'
   }
 
   /** Show contributor avatars above fish area */

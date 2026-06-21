@@ -23,7 +23,9 @@ exports.main = async (event, context) => {
     const p = player.data[0]
     const pondId = p.pondId
     const date = todayStr()
-    const avatarUrl = event.avatarUrl || ''
+    // Avatar and nickName from stored player record, not from client event
+    const avatarUrl = p.avatarUrl || ''
+    const nickName = p.nickName || ''
 
     // Increment player contribution
     const updates = {
@@ -33,19 +35,36 @@ exports.main = async (event, context) => {
     if (avatarUrl) updates.avatarUrl = avatarUrl
     await db.collection('player_ponds').where({ openId }).update({ data: updates })
 
-    // Increment pond daily clears
+    // Increment pond daily clears with user tracking
     const pond = await db.collection('pond_stats').where({ pondId, date }).get()
     console.log('[contribute] pond_stats query:', { pondId, date, found: pond.data.length })
     if (pond.data.length === 0) {
       await db.collection('pond_stats').add({
-        data: { pondId, date, dailyClears: 1, activeMembers: 1 }
+        data: {
+          pondId, date, dailyClears: 1,
+          uniquePlayers: [openId],
+          contributors: [{ openId, avatarUrl, nickName, count: 1 }]
+        }
       })
-      console.log('[contribute] pond_stats CREATED for', pondId, date)
+      console.log('[contribute] pond_stats CREATED with user for', pondId)
     } else {
-      await db.collection('pond_stats').where({ pondId, date }).update({
-        data: { dailyClears: _.inc(1), activeMembers: _.inc(1) }
+      const doc = pond.data[0]
+      const players = doc.uniquePlayers || []
+      const contribs = doc.contributors || []
+      // Update unique players (dedup)
+      if (!players.includes(openId)) players.push(openId)
+      // Update contributors (increment count or add new)
+      const existingIdx = contribs.findIndex(c => c.openId === openId)
+      if (existingIdx >= 0) {
+        contribs[existingIdx].count += 1
+        if (avatarUrl && !contribs[existingIdx].avatarUrl) contribs[existingIdx].avatarUrl = avatarUrl
+      } else {
+        contribs.push({ openId, avatarUrl, nickName, count: 1 })
+      }
+      await db.collection('pond_stats').doc(doc._id).update({
+        data: { dailyClears: _.inc(1), uniquePlayers: players, contributors: contribs }
       })
-      console.log('[contribute] pond_stats UPDATED for', pondId, date)
+      console.log('[contribute] pond_stats UPDATED with', players.length, 'players')
     }
 
     // Get updated player data for feedback

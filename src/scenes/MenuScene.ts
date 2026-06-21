@@ -12,6 +12,8 @@ export class MenuScene extends Scene {
   private _shareCallback: (() => void) | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondViews: PondView[] = []
+  private _myCloudData: any = null
+  private _gridY = 0
   private _scrollCtn: PIXI.Container | null = null
   private _scrollY = 0
   private _scrollMax = 0
@@ -20,119 +22,45 @@ export class MenuScene extends Scene {
   private _touchStart: any = null
   private _touchScrollStart: any = null
   private _touchScrollMove: any = null
+  private _authBtn: any = null
+  private _privacyResolve: ((res: { event: string }) => void) | null = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
     const w = sysInfo.windowWidth
     const h = sysInfo.windowHeight
 
-    // Water background
-    const bg = new PIXI.Graphics()
-    bg.beginFill(0x1A3A5C)
-    bg.drawRect(0, 0, w, h)
-    bg.endFill()
-    this.container.addChild(bg)
+    // Full-screen home background image
+    const homeImg = wx.createImage()
+    homeImg.onload = () => {
+      const canvas = wx.createCanvas(); canvas.width = homeImg.width; canvas.height = homeImg.height
+      canvas.getContext('2d').drawImage(homeImg, 0, 0)
+      const tex = PIXI.Texture.from(canvas)
+      const bgSp = new PIXI.Sprite(tex)
+      bgSp.width = w; bgSp.height = h
+      this.container.addChildAt(bgSp, 0)
+    }
+    homeImg.src = 'assets/home.png'
 
-    // My Pond bar (no title — just pond card)
-    const cachedPond = getCachedPond()
-    const pondCfg = cachedPond ? getPondById(cachedPond.pondId) : null
     const barY = 4
+    // Single pond — will be created after cloud data loads
+    this._loadRealCounts(w, barY)
 
-    if (pondCfg && cachedPond) {
-      const bar = new PIXI.Graphics()
-      bar.beginFill(pondCfg.colorInt, 0.3)
-      bar.drawRoundedRect(12, barY, w - 24, 30, 8)
-      bar.endFill()
-      this.container.addChild(bar)
-      const info = new PIXI.Text(`${pondCfg.emoji} ${pondCfg.name} · ${pondCfg.slogan}  |  贡献: ${cachedPond.todayContribution}🐟`, {
-        fontFamily: 'sans-serif', fontSize: 10, fill: '#FFFFFF',
-      } as any)
-      info.x = 20; info.y = barY + 8
-      this.container.addChild(info)
-      this._shareHitArea = { x: w - 50, y: barY + 3, w: 36, h: 24 }
-      this._shareCallback = () => generatePoster()
-    } else {
-      const prompt = new PIXI.Text('🐟 通关后选鱼，加入鱼塘', {
-        fontFamily: 'sans-serif', fontSize: 12, fill: '#5A8AB5', align: 'center',
-      } as any)
-      prompt.anchor.set(0.5); prompt.x = w / 2; prompt.y = barY + 15
-      this.container.addChild(prompt)
-    }
-
-    // Scrollable pond list
-    const pondW = w - 60; const pondH = 420; const gap = 24
-    const gridY = barY + 36
-    const listTotal = PONDS.length * (pondH + gap)
-    this._scrollMax = Math.max(0, gridY + listTotal + 80 - h)
-
-    this._scrollCtn = new PIXI.Container()
-    this.container.addChild(this._scrollCtn)
-
-    for (let i = 0; i < PONDS.length; i++) {
-      const px = (w - pondW) / 2
-      const py = gridY + i * (pondH + gap)
-      const pv = new PondView(PONDS[i], i, px, py, pondW, pondH)
-      // Only show real data — no placeholder fish
-      this._scrollCtn.addChild(pv.container)
-      this._pondViews.push(pv)
-
-      // Title area → opens pond detail
-      this._pondHitAreas.push({
-        rect: { x: px, y: py, w: pondW, h: 22 },
-        cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(PONDS[i].id)) }
-      })
-    }
-
-    // Load real counts
-    this._loadRealCounts()
-
-    // Load user avatar for contributor display
-    if (typeof wx !== 'undefined') {
-      try {
-        wx.getSetting({
-          success: (res: any) => {
-            if (res.authSetting['scope.userInfo']) {
-              wx.getUserInfo({
-                success: (info: any) => {
-                  const url = info.userInfo.avatarUrl
-                  for (const pv of this._pondViews) pv.showContributors([{ url, count: 1 }])
-                }
-              })
-            }
-          }
-        })
-      } catch {}
-    }
+    // Auth: cloud-stored avatar takes priority, fallback to local storage
+    this._setupAuth(w, h)
 
     // Button
     const btnW = 200; const btnH = 44
-    const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h - 60), btnW, btnH, '加入鱼塘', {
+    const btn = new Button(Math.floor((w - btnW) / 2), Math.floor(h * 0.41), btnW, btnH, '加入鱼塘', {
       bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true,
     })
     this.container.addChild(btn.container)
     this._startHitArea = btn.hitArea
     this._startCallback = () => {
-      // Auth button — always show until avatar is stored
-      if (typeof wx !== 'undefined' && !wx.getStorageSync('user_avatar')) {
-        // Native button (works in game canvas)
-        const btnW = 160; const btnH = 36
-        const btn = wx.createUserInfoButton({
-          type: 'text',
-          text: '👤 点击授权头像',
-          style: { left: (w - btnW) / 2, top: 0, width: btnW, height: btnH, fontSize: 14, lineHeight: btnH, backgroundColor: '#FF6B35', color: '#FFFFFF', borderRadius: 0, textAlign: 'center' }
-        })
-        btn.onTap((res: any) => {
-          console.log('[MenuScene] UserInfoButton tapped', JSON.stringify(res))
-          if (res.userInfo?.avatarUrl) {
-            wx.setStorageSync('user_avatar', res.userInfo.avatarUrl)
-            btn.destroy()
-          }
-        })
-      }
       const c = getCachedPond()
       if (!c) {
-        const hl2 = wx.getStorageSync('cleared_level2')
-        if (hl2 && !wx.getStorageSync('fish_selection_shown')) {
+        // Check cloud data for fish selection eligibility
+        if (this._myCloudData?.clearedLevel2 && !this._myCloudData?.fishSelectionShown) {
           const { SelectFishScene } = require('./SelectFishScene')
           this.manager.replace(new SelectFishScene())
           return
@@ -166,23 +94,141 @@ export class MenuScene extends Scene {
     }
   }
 
-  private async _loadRealCounts(): Promise<void> {
+  /** Setup privacy agreement + createUserInfoButton (参考猫密LoginScene/HomeScene) */
+  private _setupAuth(screenW: number, screenH: number): void {
+    if (typeof wx === 'undefined') return
+    const self = this
+
+    // 1. 隐私协议处理
+    if (wx.onNeedPrivacyAuthorization) {
+      wx.onNeedPrivacyAuthorization((resolve: any) => {
+        self._privacyResolve = resolve
+        wx.showModal({
+          title: '隐私协议',
+          content: '为了展示你的头像和昵称，我们需要获取你的公开信息。请阅读并同意《隐私保护指引》。',
+          confirmText: '同意',
+          cancelText: '拒绝',
+          success: (res: any) => {
+            if (res.confirm) {
+              resolve({ event: 'agree' })
+              self._privacyResolve = null
+            }
+          }
+        })
+      })
+    }
+
+    // 2. 创建原生授权按钮 — 覆盖"我的鱼塘"栏区域
+    // 按钮透明，覆盖在顶部栏上，用户点击即触发授权
+    const btnW = screenW - 24
+    const btnH = 30
+    const btnX = 12
+    const btnY = 4
+
+    this._authBtn = wx.createUserInfoButton({
+      type: 'text',
+      text: '',
+      style: {
+        left: btnX,
+        top: btnY,
+        width: btnW,
+        height: btnH,
+        lineHeight: btnH,
+        backgroundColor: 'transparent',
+        color: 'transparent',
+        textAlign: 'center',
+        fontSize: 1,
+        borderRadius: 0,
+      }
+    })
+
+    this._authBtn.onTap((res: any) => {
+      console.log('[MenuScene] UserInfoButton tapped', JSON.stringify(res))
+      if (res.errMsg === 'getUserInfo:ok' && res.userInfo) {
+        const avatarUrl = res.userInfo.avatarUrl || ''
+        const nickName = res.userInfo.nickName || ''
+        // 销毁授权按钮
+        if (self._authBtn) { self._authBtn.destroy(); self._authBtn = null }
+        // Upload avatar to cloud + apply to pond
+        self._applyAvatar(avatarUrl)
+        console.log('[MenuScene] 授权成功 avatarUrl=', avatarUrl, 'nickName=', nickName)
+      } else {
+        console.log('[MenuScene] 授权失败或取消', res.errMsg)
+      }
+    })
+  }
+
+  /** 将头像URL上传到云端 + 应用到鱼塘视图 */
+  private _applyAvatar(avatarUrl: string): void {
+    if (!avatarUrl) return
+    const cachedPond = getCachedPond()
+    const pondId = cachedPond?.pondId
+
+    // 1. 上传头像到云数据库 player_ponds
+    if (pondId) {
+      wx.cloud.callFunction({
+        name: 'updateAvatar',
+        data: { avatarUrl }
+      }).then((res: any) => {
+        console.log('[MenuScene] updateAvatar返回', JSON.stringify((res as any).result))
+      }).catch((e: any) => console.log('[MenuScene] updateAvatar失败', e))
+    }
+
+    // 2. 本地展示：我的鱼塘显示头像
+    if (pondId) {
+      const myIdx = PONDS.findIndex(p => p.id === pondId)
+      if (myIdx >= 0 && this._pondViews[myIdx]) {
+        this._pondViews[myIdx].showContributors([{ url: avatarUrl, count: 1 }])
+      }
+    }
+  }
+
+  private async _loadRealCounts(w: number, barY: number): Promise<void> {
+    let data: any = null
     try {
       const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-      const data = (res as any).result
-      console.log('[MenuScene] getPondRanking返回', JSON.stringify({ ok: data?.ok, ponds: data?.fatPondRank?.length, contribs: data?.contributors ? Object.keys(data.contributors).length : 0 }))
-      if (!data?.ok || !data.fatPondRank) return
-      for (let i = 0; i < this._pondViews.length; i++) {
-        const info = data.fatPondRank.find((d: any) => d.pondId === PONDS[i].id)
-        const count = info ? Math.max(1, Math.round(info.dailyClears / 3)) : 0
-        const contribs = (data.contributors && data.contributors[PONDS[i].id]?.length) ? data.contributors[PONDS[i].id] : undefined
-        if (count > 0) this._pondViews[i].spawnFish(count, contribs)
-        this._pondViews[i].setBadge(info ? `${info.dailyClears}条` : '0条')
+      data = (res as any).result
+      console.log('[MenuScene] getPondRanking返回', JSON.stringify({ ok: data?.ok, myPond: data?.myPond?.pondId }))
+      if (data.myPond) {
+        this._myCloudData = data.myPond
+        if (data.myPond.avatarUrl) this._applyAvatar(data.myPond.avatarUrl)
       }
-    } catch {}
+    } catch (e) { console.log('[MenuScene] getPondRanking failed', e) }
+
+    // Determine which pond to show: user's pond or #1 ranked
+    let targetPondId = data?.myPond?.pondId
+    if (!targetPondId && data?.fatPondRank?.length > 0) {
+      targetPondId = data.fatPondRank[0].pondId
+    }
+    if (!targetPondId) targetPondId = PONDS[0].id
+
+    const pondCfg = getPondById(targetPondId) || PONDS[0]
+    const pondW = w  // full width
+    const pondH = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667) - barY - 80
+    const px = (w - pondW) / 2  // = 0
+    const py = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667) - pondH - 60  // bottom aligned
+
+    const pv = new PondView(pondCfg, 0, px, py, pondW, pondH)
+    this.container.addChild(pv.container)
+    this._pondViews = [pv]
+    this._pondHitAreas.push({
+      rect: { x: px, y: py, w: pondW, h: 22 },
+      cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(targetPondId)) }
+    })
+
+    // Spawn fish if data available
+    if (data?.ok && data.fatPondRank) {
+      const info = data.fatPondRank.find((d: any) => d.pondId === targetPondId)
+      const count = info ? Math.min(info.dailyClears, 30) : 0
+      const contribs = (data.contributors && data.contributors[targetPondId]?.length) ? data.contributors[targetPondId] : undefined
+      if (count > 0) pv.spawnFish(count, contribs)
+      pv.setBadge(info ? `${info.dailyClears}条` : '0条')
+      if (info) { const rank = info.rank || (data.fatPondRank.indexOf(info) + 1); pv.updateRank?.(rank) }
+    }
   }
 
   onDestroy(): void {
+    if (this._authBtn) { this._authBtn.destroy(); this._authBtn = null }
     if (typeof wx !== 'undefined') {
       if (this._touchStart) wx.offTouchStart(this._touchStart)
       if (this._touchScrollStart) wx.offTouchStart(this._touchScrollStart)
@@ -190,19 +236,21 @@ export class MenuScene extends Scene {
     }
   }
 
+  private _announceIdx = 0
+  private _announceTimer = 0
+
   onUpdate(dt: number): void {
     if (this._startHitArea && this._startCallback) this.registerHitArea(this._startHitArea, this._startCallback, 10)
     if (this._shareHitArea && this._shareCallback) this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
+      if (!pv.container || !pv.container.parent) continue
       const gp = (pv.container as any).getGlobalPosition()
-      // Water area splash dash (fallback)
       const pw = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowWidth : 375) - 60
       this.registerHitArea({ x: gp.x + 8, y: gp.y + 22, w: pw - 16, h: 210 - 26 }, () => {
         pv.dashNear(this._lastTouchX - gp.x, this._lastTouchY - gp.y, 60)
       }, 16)
-      // Per-fish hit areas
       for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 20)
     }
   }

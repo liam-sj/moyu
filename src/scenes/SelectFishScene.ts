@@ -102,13 +102,13 @@ export class SelectFishScene extends Scene {
     // 关键节点1: 获取用户头像昵称
     console.log('[SelectFish] 开始选鱼流程, pondId=', pond.id)
     let avatarUrl = ''
+    let infoRes: any = null
     try {
-      const infoRes: any = await new Promise((resolve) => {
+      infoRes = await new Promise((resolve) => {
         wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
       })
       if (infoRes?.userInfo) {
         avatarUrl = infoRes.userInfo.avatarUrl || ''
-        wx.setStorageSync('user_avatar', avatarUrl)
         console.log('[SelectFish] 获取头像成功 avatarUrl=', avatarUrl)
       } else {
         console.log('[SelectFish] 获取头像失败，使用空值')
@@ -124,8 +124,14 @@ export class SelectFishScene extends Scene {
       console.log('[SelectFish] 云函数返回', JSON.stringify(data))
       if (data.ok) {
         setCachedPond({ pondId: pond.id, fishId: pond.fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
-        wx.setStorageSync('fish_selection_shown', true)
-        // Return to menu
+        // Upload avatar to cloud
+        if (avatarUrl) wx.cloud.callFunction({ name: 'updateAvatar', data: { avatarUrl, nickName: infoRes?.userInfo?.nickName || '', fishSelectionShown: true } })
+        // Immediately contribute the first fish to the pond (await so data is ready)
+        try {
+          const cr = await wx.cloud.callFunction({ name: 'contribute', data: {} })
+          console.log('[SelectFish] 首次贡献', JSON.stringify((cr as any).result))
+        } catch (e) { console.log('[SelectFish] 首次贡献失败', e) }
+        // Return to menu — data is now ready
         const { MenuScene } = require('./MenuScene')
         this.manager.replace(new MenuScene())
       }
