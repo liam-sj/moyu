@@ -49,12 +49,13 @@ export function createCardImage(
   if (tex) {
     const sprite = new PIXI.Sprite(tex)
     sprite.anchor.set(0.5)
-    // Maintain aspect ratio, fit within the target area
-    const scale = Math.min(maxW * 0.95 / tex.width, maxH * 0.92 / tex.height)
+    // Scale to fit within card, preserving aspect ratio
+    const padding = maxW * 0.12
+    const scale = Math.min((maxW - padding) / tex.width, (maxH - padding) / tex.height)
     sprite.width = tex.width * scale
     sprite.height = tex.height * scale
-    sprite.x = -maxW * 0.01
-    sprite.y = -maxH * 0.02
+    sprite.x = 0
+    sprite.y = 0
     if (covered) sprite.tint = 0x667788
     ctn.addChild(sprite)
   } else {
@@ -224,75 +225,27 @@ export class CardView {
     const h = this._cardHeight
     const covered = this._isCovered
 
-    // Drop shadow — larger and darker for higher layers to create depth
-    const shadowOffset = Math.min(2 + this._layer * 1.5, 6)
-    const shadowAlpha = Math.min(0.15 + this._layer * 0.08, 0.40)
-    const shadowBlur = Math.min(2 + this._layer, 6)
-
-    // Main shadow (bottom-right offset)
-    const shadow = new PIXI.Graphics()
-    shadow.beginFill(0x000000, shadowAlpha)
-    shadow.drawRoundedRect(shadowOffset, shadowOffset + shadowBlur * 0.5, w, h, 8)
-    shadow.endFill()
-    this.container.addChild(shadow)
-
-    // Secondary lighter shadow for softer depth
-    const shadow2 = new PIXI.Graphics()
-    shadow2.beginFill(0x000000, shadowAlpha * 0.5)
-    shadow2.drawRoundedRect(shadowOffset + 1, shadowOffset + 1, w, h, 8)
-    shadow2.endFill()
-    this.container.addChild(shadow2)
-
     const colorStr = getCardColor(card)
     const colorInt = hexToInt(colorStr)
 
-    // ── 3D card body ──
+    // ── Card body (transparent) ──
     if (covered) {
-      // Covered: flat dark grey, no 3D pop
-      const bg = new PIXI.Graphics()
-      bg.beginFill(0xB0BCC8)
-      bg.drawRoundedRect(0, 0, w, h, 8)
-      bg.endFill()
-      bg.lineStyle(1, 0x99A4B0, 0.8)
-      bg.drawRoundedRect(0, 0, w, h, 8)
-      this.container.addChild(bg)
-
+      // Covered: subtle dark overlay on fish image
       const overlay = new PIXI.Graphics()
-      overlay.beginFill(0x1A252F, 0.32)
+      overlay.beginFill(0x1A3028, 0.55)
       overlay.drawRoundedRect(0, 0, w, h, 8)
       overlay.endFill()
       this.container.addChild(overlay)
-    } else {
-      // Uncovered: 3D raised look with highlights
-      // Main body
-      const body = new PIXI.Graphics()
-      body.beginFill(0xFFFFFF)
-      body.drawRoundedRect(0, 0, w, h, 8)
-      body.endFill()
-      // Left + top highlight (lighter)
-      body.beginFill(0xFAFBFC, 0.6)
-      body.drawRoundedRect(1, 1, w - 2, Math.floor(h * 0.55), 5)
-      body.endFill()
-      this.container.addChild(body)
-
-      // Bottom edge shadow (darker strip for depth)
-      const botShadow = new PIXI.Graphics()
-      botShadow.beginFill(0xE0E4E8, 0.7)
-      botShadow.drawRoundedRect(2, h - 6, w - 4, 4, 2)
-      botShadow.endFill()
-      this.container.addChild(botShadow)
-
-      // Right edge shadow
-      const rightShadow = new PIXI.Graphics()
-      rightShadow.beginFill(0xE8ECF0, 0.5)
-      rightShadow.drawRoundedRect(w - 4, 4, 3, h - 8, 2)
-      rightShadow.endFill()
-      this.container.addChild(rightShadow)
-
-      // Subtle outer border
       const border = new PIXI.Graphics()
-      border.lineStyle(1, colorInt, 0.25)
-      border.drawRoundedRect(0.5, 0.5, w - 1, h - 1, 6)
+      border.lineStyle(1.5, 0x889088, 0.4)
+      border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
+      this.container.addChild(border)
+    } else {
+      // Uncovered: fully transparent — just border + fish image
+      // Outer border with rarity color
+      const border = new PIXI.Graphics()
+      border.lineStyle(2, colorInt, 0.6)
+      border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
       this.container.addChild(border)
     }
 

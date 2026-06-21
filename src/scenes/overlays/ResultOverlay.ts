@@ -33,7 +33,7 @@ export class ResultOverlay extends Scene {
     const nextLevelId = getNextLevelId(this.result.levelId)
     const nextLevelName = nextLevelId ? (LEVELS[nextLevelId]?.name || '下一关') : ''
 
-    const titleText = this.result.won ? '🎉 通关成功！' : '😫 被老板发现！'
+    const titleText = this.result.won ? '🎉 成功摸到鱼！' : '🦈 被鲨鱼抓住了！'
     const titleColor = this.result.won ? '#2ECC71' : '#E74C3C'
     const title = new PIXI.Text(titleText, {
       fontFamily: 'sans-serif', fontSize: 36, fontWeight: 'bold',

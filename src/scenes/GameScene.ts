@@ -130,7 +130,7 @@ export class GameScene extends Scene {
     let bx = 8
     // Undo
     const undoBtn = new Button(bx, btnY, btnW, btnH, '↩️ 撤回', {
-      bgColor: '#2980B9', fontSize: 11, radius: 6,
+      bgColor: '#2980B9', fontSize: 11, radius: 6, frosted: true,
     })
     this.container.addChild(undoBtn.container)
     this._bottomBtnContainers.push(undoBtn.container)
@@ -139,7 +139,7 @@ export class GameScene extends Scene {
     // Shuffle
     bx += btnW + btnGap
     const shuffleBtn = new Button(bx, btnY, btnW, btnH, '🔀 洗牌', {
-      bgColor: '#16A085', fontSize: 11, radius: 6,
+      bgColor: '#16A085', fontSize: 11, radius: 6, frosted: true,
     })
     this.container.addChild(shuffleBtn.container)
     this._bottomBtnContainers.push(shuffleBtn.container)
@@ -160,7 +160,7 @@ export class GameScene extends Scene {
     // Pause
     bx += btnW + btnGap
     const pauseBtn = new Button(bx, btnY, btnW, btnH, '⏸ 暂停', {
-      bgColor: '#7F8C8D', fontSize: 11, radius: 6,
+      bgColor: '#7F8C8D', fontSize: 11, radius: 6, frosted: true,
     })
     this.container.addChild(pauseBtn.container)
     this._bottomBtnContainers.push(pauseBtn.container)
@@ -362,41 +362,67 @@ export class GameScene extends Scene {
     }
   }
 
-  /** Level 2 difficulty spike warning — slide in from right, hold, slide out left */
+  /** Level difficulty warning — frosted glass slide-in, content from level config */
   private _showDifficultyWarning(): void {
+    const config = getLevelConfig(this.levelId)
     const w = this.screenW; const h = this.screenH
-    const panelW = 260; const panelH = 120
-    const px = (w - panelW) / 2; const py = h * 0.35
+    const panelW = 270; const panelH = 140
+    const px = (w - panelW) / 2; const py = 40
 
     const panel = new PIXI.Container()
-    panel.x = w  // start off-screen right
+    panel.x = w
     panel.y = py
 
+    // Frosted glass background
     const bg = new PIXI.Graphics()
-    bg.beginFill(0x1A0A0A, 0.95)
+    bg.beginFill(0x1A2A3A, 0.88)
     bg.drawRoundedRect(0, 0, panelW, panelH, 16)
     bg.endFill()
-    bg.lineStyle(2, 0xE74C3C, 0.8)
-    bg.drawRoundedRect(0, 0, panelW, panelH, 16)
+    bg.lineStyle(1.5, 0xFFFFFF, 0.20)
+    bg.drawRoundedRect(0.5, 0.5, panelW - 1, panelH - 1, 16)
+    // Top highlight
+    bg.beginFill(0xFFFFFF, 0.10)
+    bg.drawRoundedRect(4, 2, panelW - 8, Math.floor(panelH * 0.35), 12)
+    bg.endFill()
     panel.addChild(bg)
 
+    // Warning icon
     const icon = new PIXI.Text('⚠️', {
-      fontFamily: 'sans-serif', fontSize: 32, align: 'center',
+      fontFamily: 'sans-serif', fontSize: 30, align: 'center',
     } as any)
-    icon.anchor.set(0.5); icon.x = panelW / 2; icon.y = 28
+    icon.anchor.set(0.5); icon.x = panelW / 2; icon.y = 30
     panel.addChild(icon)
 
-    const title = new PIXI.Text('难度飙升！', {
-      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#E74C3C',
+    // Dynamic title from level config
+    const levelName = config.name || '未知关卡'
+    const title = new PIXI.Text(levelName, {
+      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#F39C12',
     } as any)
-    title.anchor.set(0.5); title.x = panelW / 2; title.y = 58
+    title.anchor.set(0.5); title.x = panelW / 2; title.y = 60
     panel.addChild(title)
 
-    const desc = new PIXI.Text('10层金字塔 · 84张卡 · 地狱挑战', {
-      fontFamily: 'sans-serif', fontSize: 12, fill: '#E8A0A0',
+    // Dynamic description from level config
+    const details: string[] = []
+    if (config.layers > 1) details.push(`${config.layers}层金字塔`)
+    if (config.totalCards) details.push(`${config.totalCards}张卡片`)
+    if (config.normalCardTypes) details.push(`${config.normalCardTypes}种鱼类`)
+    if (config.slotLimit) details.push(`槽位${config.slotLimit}格`)
+    if (config.funcCardCount > 0) details.push('含功能卡')
+    const descText = details.join(' · ') || '准备好了吗？'
+    const desc = new PIXI.Text(descText, {
+      fontFamily: 'sans-serif', fontSize: 12, fill: '#A0B8C8',
     } as any)
-    desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 84
+    desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 90
     panel.addChild(desc)
+
+    // Step limit hint
+    if (config.steps < 99) {
+      const stepHint = new PIXI.Text(`氧气仅够${config.steps}次呼吸！`, {
+        fontFamily: 'sans-serif', fontSize: 11, fill: '#E87461',
+      } as any)
+      stepHint.anchor.set(0.5); stepHint.x = panelW / 2; stepHint.y = 112
+      panel.addChild(stepHint)
+    }
 
     this.container.addChild(panel)
 
@@ -470,13 +496,13 @@ export class GameScene extends Scene {
     const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 3) / 4)
     let bx2 = 8
     // Undo
-    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 撤回', { bgColor: '#2980B9', fontSize: 11, radius: 6 })
+    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 撤回', { bgColor: '#2980B9', fontSize: 11, radius: 6, frosted: true })
     this.container.addChild(undoBtn2.container)
     this._bottomBtnContainers.push(undoBtn2.container)
     this._actionHitAreas.push({ rect: undoBtn2.hitArea, cb: () => { this.logic.undoLastAction(); this.renderSlotBar(); this.renderHUD() } })
     bx2 += btnW2 + btnGap2
     // Shuffle
-    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🔀 洗牌', { bgColor: '#16A085', fontSize: 11, radius: 6 })
+    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🔀 洗牌', { bgColor: '#16A085', fontSize: 11, radius: 6, frosted: true })
     this.container.addChild(shuffleBtn2.container)
     this._bottomBtnContainers.push(shuffleBtn2.container)
     this._actionHitAreas.push({ rect: shuffleBtn2.hitArea, cb: () => {
@@ -491,7 +517,7 @@ export class GameScene extends Scene {
     this._renderSkillButton(bx2, btnY2, btnW2, btnH2)
     bx2 += btnW2 + btnGap2
     // Pause
-    const pauseBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '⏸ 暂停', { bgColor: '#7F8C8D', fontSize: 11, radius: 6 })
+    const pauseBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '⏸ 暂停', { bgColor: '#7F8C8D', fontSize: 11, radius: 6, frosted: true })
     this.container.addChild(pauseBtn2.container)
     this._bottomBtnContainers.push(pauseBtn2.container)
     this._pauseHitArea = pauseBtn2.hitArea
@@ -596,13 +622,13 @@ export class GameScene extends Scene {
       const flightW = barW
       const flightH = bar.slotHeight + 16
 
-      // Flight bar background with special styling
+      // Flight bar background — frosted glass
       const flightBg = new PIXI.Graphics()
-      flightBg.beginFill(0x1A2A3A, 0.65)
+      flightBg.beginFill(0x1A3040, 0.30)
       flightBg.drawRoundedRect(barX, flightY, flightW, flightH, 10)
       flightBg.endFill()
-      flightBg.lineStyle(1, 0x3498DB, 0.5)
-      flightBg.drawRoundedRect(barX, flightY, flightW, flightH, 10)
+      flightBg.lineStyle(1, 0xFFFFFF, 0.15)
+      flightBg.drawRoundedRect(barX + 0.5, flightY + 0.5, flightW - 1, flightH - 1, 10)
       this.slotLayer.addChild(flightBg)
 
       // Flight label
@@ -624,7 +650,7 @@ export class GameScene extends Scene {
         const fs = new PIXI.Graphics()
         if (flightCard) {
           // Card in flight slot
-          fs.beginFill(0xFFFFFF, 0.9)
+          fs.beginFill(0xFFFFFF, 0.12)
           fs.drawRoundedRect(fx, fy, fw, fh, 6)
           fs.endFill()
           fs.lineStyle(1.5, 0x3498DB, 0.7)
@@ -636,11 +662,12 @@ export class GameScene extends Scene {
           img.x = fx + fw / 2; img.y = fy + fh / 2
           this.slotLayer.addChild(img)
         } else {
-          // Empty flight slot — always show ✈️
-          fs.lineStyle(1.5, 0x3498DB, 0.45)
-          fs.beginFill(0x5C4033, 0.18)
+          // Empty flight slot — frosted glass
+          fs.beginFill(0xFFFFFF, 0.05)
           fs.drawRoundedRect(fx, fy, fw, fh, 6)
           fs.endFill()
+          fs.lineStyle(1, 0xFFFFFF, 0.12)
+          fs.drawRoundedRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1, 6)
           this.slotLayer.addChild(fs)
 
           const fTxt = new PIXI.Text('✈️', {
@@ -675,7 +702,7 @@ export class GameScene extends Scene {
 
         const hs = new PIXI.Graphics()
         if (hCard) {
-          hs.beginFill(0xFFFFFF, 0.85)
+          hs.beginFill(0xFFFFFF, 0.12)
           hs.drawRoundedRect(hx, hy, hw, holdH, 6)
           hs.endFill()
           hs.lineStyle(1.5, 0x8E44AD, 0.6)
@@ -694,13 +721,13 @@ export class GameScene extends Scene {
       }
     }
 
-    // ── Normal slot bar ──
+    // ── Normal slot bar ── frosted glass
     const barBg = new PIXI.Graphics()
-    barBg.beginFill(0x3C2820, 0.75)
+    barBg.beginFill(0x1A3040, 0.35)
     barBg.drawRoundedRect(barX, barY, barW, barH, 10)
     barBg.endFill()
-    barBg.lineStyle(1, 0x6B5344, 0.6)
-    barBg.drawRoundedRect(barX, barY, barW, barH, 10)
+    barBg.lineStyle(1.5, 0xFFFFFF, 0.15)
+    barBg.drawRoundedRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1, 10)
     this.slotLayer.addChild(barBg)
 
     // Count same-type cards to highlight slots nearing elimination
@@ -728,14 +755,14 @@ export class GameScene extends Scene {
         const nearElim = sameTypeIndices.length >= 2
 
         const bg = new PIXI.Graphics()
-        bg.beginFill(0xFFFFFF, nearElim ? 1 : 0.9)
+        bg.beginFill(0xFFFFFF, nearElim ? 0.25 : 0.10)
         bg.drawRoundedRect(x, y, w, h, 6)
         bg.endFill()
         if (nearElim) {
           // Glow effect for cards nearing elimination
-          bg.lineStyle(2, 0xF1C40F, 0.8)
+          bg.lineStyle(2, 0xF1C40F, 0.7)
         } else {
-          bg.lineStyle(1, colorInt, 0.5)
+          bg.lineStyle(1, colorInt, 0.35)
         }
         bg.drawRoundedRect(x, y, w, h, 6)
         this.slotLayer.addChild(bg)
@@ -756,10 +783,13 @@ export class GameScene extends Scene {
           this.slotLayer.addChild(badgeTxt)
         }
       } else {
-        // Empty slot — dashed outline
+        // Empty slot — frosted glass placeholder
         const empty = new PIXI.Graphics()
-        empty.lineStyle(1, 0x7A6B5D, 0.35)
+        empty.beginFill(0xFFFFFF, 0.06)
         empty.drawRoundedRect(x, y, w, h, 6)
+        empty.endFill()
+        empty.lineStyle(1, 0xFFFFFF, 0.12)
+        empty.drawRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, 6)
         this.slotLayer.addChild(empty)
 
         // Slot number
@@ -787,23 +817,25 @@ export class GameScene extends Scene {
     levelTxt.x = 10; levelTxt.y = 14
     this.hudLayer.addChild(levelTxt)
 
-    // Steps — moved to left side to avoid notch
+    // Oxygen remaining — frosted glass pill
     const stepsUnlimited = bar.stepsUnlimited
     const stepsRemain = bar.stepsRemaining
     const stepsWarn = stepsRemain <= 5 && !stepsUnlimited
     const stepsDisplay = stepsUnlimited ? '∞' : String(stepsRemain)
 
     const stepsBg = new PIXI.Graphics()
-    stepsBg.beginFill(stepsWarn ? 0xE74C3C : 0x5C4033, 0.75)
-    stepsBg.drawRoundedRect(8, 40, 66, 28, 14)
+    stepsBg.beginFill(stepsWarn ? 0xE87461 : 0x1A3040, 0.55)
+    stepsBg.drawRoundedRect(8, 40, 76, 28, 14)
     stepsBg.endFill()
+    stepsBg.lineStyle(1, 0xFFFFFF, 0.15)
+    stepsBg.drawRoundedRect(8.5, 40.5, 75, 27, 14)
     this.hudLayer.addChild(stepsBg)
 
-    const stepsTxt = new PIXI.Text('👣 ' + stepsDisplay, {
+    const stepsTxt = new PIXI.Text('🫧 ' + stepsDisplay, {
       fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold',
-      fill: stepsWarn ? '#FFFFFF' : '#F1C40F',
+      fill: stepsWarn ? '#FFFFFF' : '#7FB3D8',
     } as any)
-    stepsTxt.anchor.set(0.5); stepsTxt.x = 41; stepsTxt.y = 54
+    stepsTxt.anchor.set(0.5); stepsTxt.x = 46; stepsTxt.y = 54
     this.hudLayer.addChild(stepsTxt)
 
     // Happiness — right side
@@ -1342,6 +1374,7 @@ export class GameScene extends Scene {
   private _joiningPond = false  // guard against double-click
 
   private onSkillSelected(skill: SkillConfig): void {
+    logger.info('GameScene', `onSkillSelected: ${skill.name} id=${skill.id} charges=${this.logic.skillSystem.charges}`)
     this._dismissSkillPanel()
     const ctx = this.logic.getSkillContext()
     this.logic.skillSystem.selectSkill(skill, ctx)

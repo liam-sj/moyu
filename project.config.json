@@ -61,7 +61,8 @@
       { "type": "glob", "value": "package-lock.json" },
       { "type": "glob", "value": "pnpm-lock.yaml" },
       { "type": "glob", "value": "tsconfig.json" },
-      { "type": "glob", "value": ".eslintrc.js" }
+      { "type": "glob", "value": ".eslintrc.js" },
+      { "type": "glob", "value": "assets/draft/**" }
     ],
     "include": []
   },

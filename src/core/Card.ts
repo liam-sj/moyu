@@ -52,15 +52,15 @@ export function revealCard(card: CardData): void {
 
 export function getCardColor(card: CardData | BoardCard | SlotCard): string {
   const config = card.config
-  if (card.type === 'event' && !card.isRevealed) return '#9B59B6'
+  if (card.type === 'event' && !card.isRevealed) return '#B39BC8'   // muted lotus purple
   if (card.type === 'event' && card.isRevealed) {
     const t = (config as FuncCardConfig).type
-    if (t === 'negative') return '#E74C3C'
-    if (t === 'positive') return '#2ECC71'
-    if (t === 'dual') return '#F39C12'
+    if (t === 'negative') return '#E87461'   // warm coral red
+    if (t === 'positive') return '#6BBF8A'   // jade green
+    if (t === 'dual') return '#F0A860'       // warm amber
   }
   const r = (config as NormalCardConfig).rarity
-  if (r === 'rare') return '#F1C40F'
-  if (r === 'uncommon') return '#3498DB'
-  return '#95A5A6'
+  if (r === 'rare') return '#E8B45A'         // soft gold
+  if (r === 'uncommon') return '#6CB4C4'     // pond teal
+  return '#A8B5A0'                           // moss green (was cold grey)
 }

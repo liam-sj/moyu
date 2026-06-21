@@ -101,7 +101,7 @@ export class GameLogic {
 
   private _revealEventCard(card: any): void {
     if (this.consecutiveNegative >= 3) {
-      const positiveCards = ['paid_leave', 'colleague_coffee', 'early_leave', 'boss_favor', 'reimburse']
+      const positiveCards = ['pearl', 'dragon']
       const pick = positiveCards[Math.floor(Math.random() * positiveCards.length)]
       for (const fc of FUNC_CARDS) {
         if (fc.id === pick) { card.config = fc; card.cardId = fc.id; break }
@@ -128,7 +128,7 @@ export class GameLogic {
         for (let i = 0; i < slots.length; i++) { if (slots[i]) nonNull.push(i) }
         if (nonNull.length > 0) {
           const target = nonNull[Math.floor(Math.random() * nonNull.length)]
-          slots[target] = { uid: 'boss_patrol', type: 'event', config: card.config, cardId: 'boss_patrol', icon: '⚠️', name: '老板巡视', isRevealed: true }
+          slots[target] = { uid: 'shark', type: 'event', config: card.config, cardId: 'shark', icon: '🦈', name: '鲨鱼来袭', isRevealed: true }
         }
         this.bus.emit('slotChanged', {})
         break
@@ -289,7 +289,7 @@ export class GameLogic {
       return
     }
     if (result.isFailed) {
-      const reason = result.reason === 'steps' ? '步数耗尽！' : '被老板发现！'
+      const reason = result.reason === 'steps' ? '氧气耗尽！' : '被鲨鱼抓住了！'
       this._endGame(false, reason)
     }
   }

@@ -6,22 +6,26 @@ export interface AtlasCell { x: number; y: number; w: number; h: number }
 /** Built by loadCardAtlas after the image loads */
 export let ATLAS: Record<string, AtlasCell> = {}
 
+// First 3 rows of new-fishs.png atlas (4 cols × 3 rows = 12 fish)
 const CARD_ORDER = [
-  'phone', 'toilet', 'sleep', 'snack', 'shop',       // row 1
-  'gossip', 'game', 'question_mark', 'boss_patrol', 'printer_jam', // row 2
-  'early_leave', 'paid_leave',                         // row 3
+  'xiaojinyu', 'xianyugan', 'jinli', 'hetun',           // row 1
+  'moyu', 'haima', 'feiyu', 'zhangyu',                   // row 2
+  'bimuyu', 'pangxie', 'jianyu', 'haitun',               // row 3
 ]
 
-export function buildAtlas(imgW: number, imgH: number, cols = 5, rows = 3): void {
+export function buildAtlas(imgW: number, imgH: number, cols = 4, rows = 4): void {
   const CW = Math.floor(imgW / cols)
   const CH = Math.floor(imgH / rows)
   const map: Record<string, AtlasCell> = {}
   for (let i = 0; i < CARD_ORDER.length; i++) {
+    // card i uses row = floor(i / cols), col = i % cols
+    const col = i % cols
+    const row = Math.floor(i / cols)
     map[CARD_ORDER[i]] = {
-      x: (i % cols) * CW,
-      y: Math.floor(i / cols) * CH,
-      w: CW,
-      h: CH,
+      x: col * CW + Math.floor(CW * 0.05),       // 5% inset
+      y: row * CH + Math.floor(CH * 0.05),
+      w: CW - Math.floor(CW * 0.10),              // 10% narrower (crop blank edges)
+      h: CH - Math.floor(CH * 0.10),
     }
   }
   ATLAS = map
@@ -34,4 +38,4 @@ export function atlasKey(cardId: string, isEvent: boolean, isRevealed: boolean):
   return cardId
 }
 
-export const ATLAS_PATH = 'assets/cards/cards.png'
+export const ATLAS_PATH = 'assets/new-fishs.png'

@@ -38,8 +38,11 @@ export class FishView {
   dashChance = 0.05
   private _avatarSprite: PIXI.Sprite | null = null
   private _baseSize: number
+  /** Crab lives at the bottom — restricted vertical movement */
+  readonly bottomDweller: boolean
 
   constructor(fishId: string, idx: number, x: number, y: number, size: number) {
+    this.bottomDweller = fishId === 'pangxie'
     this.container = new PIXI.Container()
     const tex = getFishTex(fishId, idx)
     this._baseSize = size
@@ -59,8 +62,14 @@ export class FishView {
     this.container.x = x; this.container.y = y
     this.sprite.alpha = 0.85
 
-    this.vx = 0.15 * (Math.random() > 0.5 ? 1 : -1)
-    this.vy = 0.06 * (Math.random() > 0.5 ? 1 : -1)
+    if (this.bottomDweller) {
+      // Crab: slow horizontal scuttle, no vertical drifting
+      this.vx = 0.08 * (Math.random() > 0.5 ? 1 : -1)
+      this.vy = 0
+    } else {
+      this.vx = 0.15 * (Math.random() > 0.5 ? 1 : -1)
+      this.vy = 0.06 * (Math.random() > 0.5 ? 1 : -1)
+    }
     this.phase = Math.random() * Math.PI * 2
     this.state = 'cruise'
     this.stateTimer = 60 + Math.random() * 120
@@ -108,17 +117,32 @@ export class FishView {
     this.container.x += this.vx * dt * speedMul
     this.container.y += this.vy * dt * speedMul
 
-    // Bounce + dash when hitting edge (Y dash is gentler to prevent oscillation)
-    const bouncedX = this.container.x < bounds.x + 28 || this.container.x > bounds.x + bounds.w - 34
-    const bouncedY = this.container.y < bounds.y + 28 || this.container.y > bounds.y + bounds.h - 30
-    if (bouncedX || bouncedY) {
-      this.state = 'dash'
-      this.stateTimer = 20 + Math.random() * 30
+    // ── Boundary handling ──
+    const margin = 28
+    const bottomMargin = this.bottomDweller ? 8 : 150  // crab hugs bottom, fish keep 150px away
+
+    if (this.bottomDweller) {
+      // Crab: confined to bottom strip (bottom 30% of pond)
+      const crabTop = bounds.y + bounds.h * 0.7
+      const crabBottom = bounds.y + bounds.h - bottomMargin
+      if (this.container.y < crabTop) { this.vy = Math.abs(this.vy); this.container.y = crabTop + 1 }
+      if (this.container.y > crabBottom) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = crabBottom - 1 }
+      // Horizontal bounds
+      if (this.container.x < bounds.x + margin) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + margin + 1 }
+      if (this.container.x > bounds.x + bounds.w - margin - 6) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - margin - 7 }
+    } else {
+      // Normal fish: bounce 100px above bottom
+      const bouncedX = this.container.x < bounds.x + margin || this.container.x > bounds.x + bounds.w - margin - 6
+      const bouncedY = this.container.y < bounds.y + margin || this.container.y > bounds.y + bounds.h - bottomMargin
+      if (bouncedX || bouncedY) {
+        this.state = 'dash'
+        this.stateTimer = 20 + Math.random() * 30
+      }
+      if (this.container.x < bounds.x + margin) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + margin + 1 }
+      if (this.container.x > bounds.x + bounds.w - margin - 6) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - margin - 7 }
+      if (this.container.y < bounds.y + margin) { this.vy = Math.abs(this.vy) * 0.3; this.container.y = bounds.y + margin + 1 }
+      if (this.container.y > bounds.y + bounds.h - bottomMargin) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = bounds.y + bounds.h - bottomMargin - 1 }
     }
-    if (this.container.x < bounds.x + 28) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + 29 }
-    if (this.container.x > bounds.x + bounds.w - 34) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - 35 }
-    if (this.container.y < bounds.y + 28) { this.vy = Math.abs(this.vy) * 0.3; this.container.y = bounds.y + 29 }
-    if (this.container.y > bounds.y + bounds.h - 30) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = bounds.y + bounds.h - 31 }
 
     // Body animation
     const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1

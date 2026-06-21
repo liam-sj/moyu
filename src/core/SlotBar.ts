@@ -230,10 +230,10 @@ export class SlotBar {
       if (this.slots[i] && this.slots[i]!.type !== 'event') {
         const c = this.slots[i]!
         c.type = 'event'
-        c.cardId = 'paid_leave'
-        c.icon = '🌟'
-        c.name = '万能卡'
-        c.config = { id: 'paid_leave', effect: 'wild_card', type: 'positive' } as any
+        c.cardId = 'pearl'
+        c.icon = '💎'
+        c.name = '万能珍珠'
+        c.config = { id: 'pearl', effect: 'wild_card', type: 'positive' } as any
         c.isRevealed = true
         break
       }

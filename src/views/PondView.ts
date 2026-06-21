@@ -182,10 +182,15 @@ export class PondView {
   private _spawnFishes(max: number, fishIdList: string[], avatarList: string[]): void {
     for (let i = 0; i < max; i++) {
       const useFishId = i < fishIdList.length ? fishIdList[i] : this._pondConfig.fishId
+      const isCrab = useFishId === 'pangxie'
+      // Crab stays at bottom strip, other fish distributed across pond
+      const fy = isCrab
+        ? this._bounds.y + this._bounds.h * 0.78 + ((i * 23 + 11) % Math.max(1, this._bounds.h * 0.18))
+        : this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28))
       const f = new FishView(useFishId, i,
         this._bounds.x + 10 + ((i * 47 + 13) % Math.max(1, this._bounds.w - 24)),
-        this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28)),
-        28 + ((i * 19 + 5) % 10)
+        fy,
+        isCrab ? 24 : 28 + ((i * 19 + 5) % 10)
       )
       if (i < avatarList.length) f.setAvatar(avatarList[i])
       this._fish.push(f)

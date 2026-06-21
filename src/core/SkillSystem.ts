@@ -32,9 +32,11 @@ export class SkillSystem {
 
   onEliminate(): void {
     this.eliminateCount++
+    console.log(`[SkillSystem] eliminated #${this.eliminateCount} (threshold=${this.triggerThreshold})`)
     if (this.eliminateCount % this.triggerThreshold === 0) {
       if (this.charges < this.maxCharges) {
         this.charges++
+        console.log(`[SkillSystem] ⚡ charge gained (${this.charges}/${this.maxCharges})`)
         log(TAG, `Skill charge gained (${this.charges}/${this.maxCharges})`)
       }
     }
@@ -46,15 +48,18 @@ export class SkillSystem {
     this.isShowingSelection = true
     const all = getAllSkills()
     const available = all.filter(s => !this.usedSkills.has(s.id))
+    console.log(`[SkillSystem] panel opened charges=${this.charges} available=${available.length}`)
     log(TAG, 'Skill panel opened, available: ' + available.length + ', charges: ' + this.charges)
     this.bus.emit<SkillTriggeredEvent>('skillTriggered', { skills: available })
   }
 
   selectSkill(skill: SkillConfig, ctx: SkillContext): void {
+    console.log(`[SkillSystem] selectSkill charges=${this.charges} skill=${skill.name}`)
     if (this.charges <= 0) return  // need charges to use
     this.isShowingSelection = false
     this.usedSkills.add(skill.id)
     this.charges--
+    console.log(`[SkillSystem] ✅ skill used: ${skill.name} (charges left: ${this.charges})`)
     log(TAG, 'Player used: ' + skill.name + ' (charges left: ' + this.charges + ')')
     skill.apply(ctx)
     this.bus.emit('skillApplied', { skill })

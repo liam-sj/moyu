@@ -1,36 +1,39 @@
 import type { LevelConfig } from '../core/types'
 
 export const LEVELS: Record<string, LevelConfig> = {
-  // 教学关 — 几乎不可能失败，学会基础操作
+  // 教学关 — 单层平铺，熟悉操作
   level1: {
     id: 'level1',
-    name: '第一关·DEV',
-    normalCardTypes: 2,        // DEV
+    name: '第一关·浅滩',
+    normalCardTypes: 3,
     funcCardCount: 0,
     funcTypes: [],
     layers: 1,
-    gridRows: 2,
-    gridCols: 3,
-    totalCards: 6,
+    gridRows: 3,
+    gridCols: 4,
+    totalCards: 12,
     steps: 99,
     slotLimit: 10,
-    layerCards: [6],
+    layerCards: [12],
     gapRatio: 0,
   },
+  // 深渊关 — 9层金字塔
   level2: {
     id: 'level2',
-    name: '第二关·DEV',
-    normalCardTypes: 2,        // DEV
+    name: '第二关·深渊',
+    normalCardTypes: 8,         // 12种鱼里随机8种
     funcCardCount: 0,
     funcTypes: [],
-    layers: 1,
-    gridRows: 2,
-    gridCols: 3,
-    totalCards: 6,
+    layers: 9,
+    gridRows: 6,
+    gridCols: 6,
+    totalCards: 96,
     steps: 99,
-    slotLimit: 10,
-    layerCards: [6],
-    gapRatio: 0.50,            // DEV: 宽间距
+    slotLimit: 7,
+    // 9层金字塔：底22→顶2，逐层递减
+    layerCards: [22, 18, 14, 12, 10, 8, 6, 4, 2],
+    gapRatio: 0.08,             // 紧凑排列
+    clusterLayers: [4, 5, 6, 7, 8],
   },
 }
 

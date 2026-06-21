@@ -1,13 +1,22 @@
 import type { NormalCardConfig, FuncCardConfig } from '../core/types'
 
+/**
+ * 12 fish types as normal cards (first 3 rows of new-fishs.png atlas).
+ * Weights control rarity: higher = more likely to appear in a level.
+ */
 export const NORMAL_CARDS: NormalCardConfig[] = [
-  { id: 'phone',    icon: '📱', name: '刷手机',   rarity: 'common', weight: 90 },
-  { id: 'toilet',   icon: '🚽', name: '带薪拉屎', rarity: 'common', weight: 80 },
-  { id: 'sleep',    icon: '😴', name: '打瞌睡',   rarity: 'common', weight: 70 },
-  { id: 'snack',    icon: '🍜', name: '吃零食',   rarity: 'uncommon', weight: 40 },
-  { id: 'shop',     icon: '🛒', name: '逛淘宝',   rarity: 'uncommon', weight: 35 },
-  { id: 'gossip',   icon: '💬', name: '聊八卦',   rarity: 'rare', weight: 15 },
-  { id: 'game',     icon: '🎮', name: '偷偷游戏', rarity: 'rare', weight: 10 },
+  { id: 'xiaojinyu', icon: '🐟', name: '小金鱼', rarity: 'common', weight: 90 },
+  { id: 'xianyugan',  icon: '🦐', name: '咸鱼干', rarity: 'common', weight: 90 },
+  { id: 'jinli',     icon: '🐠', name: '锦鲤',   rarity: 'common', weight: 80 },
+  { id: 'hetun',     icon: '🐡', name: '河豚',   rarity: 'common', weight: 70 },
+  { id: 'moyu',      icon: '🦑', name: '墨鱼',   rarity: 'uncommon', weight: 45 },
+  { id: 'haima',     icon: '🐬', name: '海马',   rarity: 'uncommon', weight: 40 },
+  { id: 'feiyu',     icon: '🦅', name: '飞鱼',   rarity: 'uncommon', weight: 35 },
+  { id: 'zhangyu',   icon: '🐙', name: '章鱼',   rarity: 'uncommon', weight: 35 },
+  { id: 'bimuyu',    icon: '🐟', name: '比目鱼', rarity: 'rare', weight: 20 },
+  { id: 'pangxie',   icon: '🦀', name: '螃蟹',   rarity: 'rare', weight: 15 },
+  { id: 'jianyu',    icon: '⚔️', name: '剑鱼',   rarity: 'rare', weight: 10 },
+  { id: 'haitun',    icon: '🐬', name: '海豚',   rarity: 'rare', weight: 10 },
 ]
 
 export const FUNC_TYPE = {
@@ -16,13 +25,14 @@ export const FUNC_TYPE = {
   DUAL: 'dual',
 } as const
 
+// Func cards temporarily hidden (funcCardCount: 0 in levels), kept for future use
 export const FUNC_CARDS: FuncCardConfig[] = [
-  { id: 'boss_patrol',   icon: '⚠️', name: '老板巡视',   type: 'negative',
-    effect: 'boss_patrol', revealIcon: '⚠️', revealName: '老板巡视', weight: 50 },
-  { id: 'printer_jam',   icon: '🖨️', name: '卡纸打印机', type: 'negative',
-    effect: 'slot_limit_down', revealIcon: '🖨️', revealName: '卡纸打印机', weight: 35 },
-  { id: 'early_leave',   icon: '🎫', name: '提前下班',   type: 'positive',
-    effect: 'add_steps_3', revealIcon: '🎫', revealName: '提前下班', weight: 10 },
-  { id: 'paid_leave',    icon: '🌟', name: '万能卡',     type: 'positive',
-    effect: 'wild_card', revealIcon: '🌟', revealName: '万能卡', weight: 15 },
+  { id: 'shark',      icon: '🦈', name: '鲨鱼来袭', type: 'negative',
+    effect: 'boss_patrol', revealIcon: '🦈', revealName: '鲨鱼来袭', weight: 50 },
+  { id: 'jellyfish',  icon: '🪼', name: '水母电网', type: 'negative',
+    effect: 'slot_limit_down', revealIcon: '🪼', revealName: '水母电网', weight: 35 },
+  { id: 'dragon',     icon: '🐉', name: '神龙祝福', type: 'positive',
+    effect: 'add_steps_3', revealIcon: '🐉', revealName: '神龙祝福', weight: 10 },
+  { id: 'pearl',      icon: '💎', name: '万能珍珠', type: 'positive',
+    effect: 'wild_card', revealIcon: '💎', revealName: '万能珍珠', weight: 15 },
 ]

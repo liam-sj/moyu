@@ -16,47 +16,47 @@ type Ctx = SkillContext
 
 const SKILLS: SkillConfig[] = [
   // ═══ 常规技能 (S1-S8, 等概率) ═══
-  { id: 'S1', name: '移出三张',   icon: '📤', tag: TAG.RELIEF,
+  { id: 'S1', name: '鱼群迁徙',   icon: '🐠', tag: TAG.RELIEF,
     desc: '将卡槽前3张移到移出区',
     apply: (c: Ctx) => { c.ejectSlots = true } },
 
-  { id: 'S2', name: '同事掩护',   icon: '🤝', tag: TAG.TOLERANCE,
+  { id: 'S2', name: '珊瑚庇护',   icon: '🪸', tag: TAG.TOLERANCE,
     desc: '本局槽位上限+1（永久）',
     apply: (c: Ctx) => { c.slotLimit += 1 } },
 
-  { id: 'S3', name: '提前下班',   icon: '⏰', tag: TAG.EMERGENCY,
+  { id: 'S3', name: '跃出水面',   icon: '🐬', tag: TAG.EMERGENCY,
     desc: '立即清空槽位中数量最多的那种卡',
     apply: (c: Ctx) => { c.clearMostInSlot = true } },
 
-  { id: 'S4', name: '清理桌面',   icon: '🗑️', tag: TAG.RELIEF,
+  { id: 'S4', name: '洋流冲刷',   icon: '🌊', tag: TAG.RELIEF,
     desc: '随机移除棋盘上3张被压住的卡',
     apply: (c: Ctx) => { c.removeCoveredCards = 3 } },
 
-  { id: 'S5', name: '假装工作',   icon: '🎭', tag: TAG.WILD,
-    desc: '将槽位中一张卡变成万能卡',
+  { id: 'S5', name: '珍珠幻化',   icon: '💎', tag: TAG.WILD,
+    desc: '将槽位中一张卡变成万能珍珠',
     apply: (c: Ctx) => { c.transformToWild = 1 } },
 
-  { id: 'S6', name: '周报护体',   icon: '📊', tag: TAG.LIFE_SAVER,
+  { id: 'S6', name: '贝壳护盾',   icon: '🐚', tag: TAG.LIFE_SAVER,
     desc: '下一次槽满时不失败，改为清空全部槽位',
     apply: (c: Ctx) => { c.slotOverflowShield = true } },
 
-  { id: 'S7', name: '极限逃生',   icon: '🏃', tag: TAG.ENDURANCE,
+  { id: 'S7', name: '鱼跃冲刺',   icon: '🐟', tag: TAG.ENDURANCE,
     desc: '额外获得5步',
     apply: (c: Ctx) => { c.stepsRemaining += 5 } },
 
-  { id: 'S8', name: '屏幕切换',   icon: '💻', tag: TAG.CLEAR,
+  { id: 'S8', name: '鱼网清除',   icon: '🎣', tag: TAG.CLEAR,
     desc: '指定一种卡，本局该种卡全部消除',
     apply: (c: Ctx) => { c.selectAndClear = true } },
 
   // ═══ 传说技能 (S9-S10, ~1/10 概率) ═══
-  { id: 'S9', name: '忘记打卡',   icon: '🦄', tag: TAG.LEGENDARY,
+  { id: 'S9', name: '龙门飞跃',   icon: '🐉', tag: TAG.LEGENDARY,
     desc: '本局取消步数限制，但槽位上限-2',
     apply: (c: Ctx) => {
       c.stepsUnlimited = true
       c.slotLimit = Math.max(3, c.slotLimit - 2)
     } },
 
-  { id: 'S10', name: '无人办公室', icon: '🔓', tag: TAG.LEGENDARY,
+  { id: 'S10', name: '深海自由', icon: '🐋', tag: TAG.LEGENDARY,
     desc: '本局槽位上限取消，但步数减半',
     apply: (c: Ctx) => {
       c.slotUnlimited = true

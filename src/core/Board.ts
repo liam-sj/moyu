@@ -25,38 +25,35 @@ export class Board {
 
   calcLayout(screenW: number, screenH: number, rows: number, cols: number, layers: number, gapRatio = 0): void {
     const areaTop = 20
-    const areaBottom = gapRatio > 0 ? 240 : 200
+    const areaBottom = 240
     const areaH = screenH - areaTop - areaBottom
-    const areaW = screenW - (gapRatio > 0 ? 40 : 20)
+    const areaW = screenW - 40
 
-    // Sizing: Level 2 uses effectiveCols; Level 1 targets similar card size with wider grid
-    const layerOffsetRatio = gapRatio > 0 ? 0.15 : 0
-    const preGap = gapRatio > 0 ? 0 : 30
-    const effectiveCols = cols + (layers - 1) * layerOffsetRatio
+    const layerOffsetRatio = 0.15
+    const gap = gapRatio > 0 ? gapRatio : 0.18  // Level 1 default gap
 
-    if (gapRatio > 0) {
-      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / effectiveCols)
-    } else {
-      this.cardWidth = Math.floor((areaW - (cols - 1) * preGap) / 6)
-    }
-    this.cardHeight = Math.floor(this.cardWidth * 1.25)
+    // Solve: totalWidth = CW * (cols + (cols-1)*gap + (layers-1)*layerOffsetRatio) ≤ areaW
+    const denom = cols + (cols - 1) * gap + (layers - 1) * layerOffsetRatio
+    const maxCardW = 50  // cap to keep both levels consistent and prevent overflow
+    this.cardWidth = Math.min(maxCardW, Math.floor(areaW / denom))
+    this.cardHeight = this.cardWidth
 
-    this.layerOffsetX = gapRatio > 0 ? Math.floor(this.cardWidth * layerOffsetRatio) : 0
-    this.layerOffsetY = gapRatio > 0 ? Math.floor(this.cardHeight * 0.40) : 40
-    this.gap = gapRatio > 0 ? Math.floor(this.cardWidth * gapRatio) : 30
-    this.staggerLayers = gapRatio > 0
+    this.layerOffsetX = Math.floor(this.cardWidth * layerOffsetRatio)
+    this.layerOffsetY = Math.floor(this.cardHeight * 0.40)
+    this.gap = Math.floor(this.cardWidth * gap)
+    this.staggerLayers = true
 
-    // Center the widest (top) layer's visual extent
-    const gridVisualWidth = this.cardWidth * cols + this.gap * (cols - 1)
-    const totalVisualWidth = gridVisualWidth + (layers - 1) * this.layerOffsetX
+    // Center horizontally
+    const totalVisualWidth = this.cardWidth * cols + this.gap * (cols - 1) + (layers - 1) * this.layerOffsetX
     this.offsetX = Math.max(10, Math.floor((screenW - totalVisualWidth) / 2))
 
-    // Center grid vertically, then shift down to prevent top layer from going off-screen
+    // Center vertically with room for top layers
     const gridVisualHeight = this.cardHeight * rows + this.gap * (rows - 1)
     const centeredOffsetY = areaTop + Math.floor((areaH - gridVisualHeight) / 2)
     const minOffsetY = areaTop + (layers - 1) * this.layerOffsetY
-    const extraShift = gapRatio > 0 ? Math.floor(areaH * 0.15) : 0
-    this.offsetY = Math.max(centeredOffsetY, minOffsetY) + extraShift
+    // Multi-layer levels: shift down 30% to leave breathing room above
+    const multiLayerShift = layers > 1 ? Math.floor(areaH * 0.30) : 0
+    this.offsetY = Math.max(centeredOffsetY, minOffsetY) + multiLayerShift
   }
 
   generate(config: LevelConfig): void {
@@ -133,16 +130,28 @@ export class Board {
 
     const normalCount = totalNeeded - totalFunc
 
-    const usedNormalTypes = NORMAL_CARDS.slice(0, config.normalCardTypes)
-    let perType = Math.floor(normalCount / config.normalCardTypes)
-    perType = perType - (perType % 3) // ensure multiples of 3
-    for (const ct of usedNormalTypes) {
-      for (let j = 0; j < perType; j++) {
-        list.push({ type: 'normal', config: ct })
+    // Randomly pick card types — capped by what can fit (each type needs ≥3 cards)
+    const maxTypes = Math.max(1, Math.floor(normalCount / 3))
+    const typeCount = Math.min(config.normalCardTypes, maxTypes)
+    const shuffled = [...NORMAL_CARDS].sort(() => Math.random() - 0.5)
+    const usedNormalTypes = shuffled.slice(0, typeCount)
+
+    // Distribute cards evenly: each type gets the same base count (multiple of 3)
+    const perType = Math.floor(normalCount / typeCount)
+    const perType3n = perType - (perType % 3)  // round down to nearest 3n
+    let placed = 0
+    for (let i = 0; i < usedNormalTypes.length; i++) {
+      // First type gets any extra cards
+      const count = i === 0
+        ? normalCount - (usedNormalTypes.length - 1) * perType3n
+        : perType3n
+      for (let j = 0; j < count; j++) {
+        list.push({ type: 'normal', config: usedNormalTypes[i] })
+        placed++
       }
     }
-    // fill remainder — ensure multiple of 3 so every card can be eliminated
-    const remain = normalCount - list.filter(l => l.type === 'normal').length
+    // Fill any remaining slots to reach 3n
+    const remain = normalCount - placed
     const adjustedRemain = remain - (remain % 3)
     for (let k = 0; k < adjustedRemain; k++) {
       list.push({ type: 'normal', config: usedNormalTypes[0] })
