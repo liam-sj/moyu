@@ -34,7 +34,7 @@ const app = new PIXI.Application({
 import { loadCardAtlas } from './views/CardView'
 loadCardAtlas()
 import { loadFishAtlas } from './views/FishView'
-loadFishAtlas('assets/fishs.png')
+loadFishAtlas('assets/new-fishs.png')
 
 // ── 场景管理 ──
 import { SceneManager } from './engine/SceneManager'

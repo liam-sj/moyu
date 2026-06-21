@@ -14,15 +14,17 @@ export function loadFishAtlas(url: string): void {
   img.src = url
 }
 
-const FISH_ORDER = ['xiaojinyu','xianyugan','jinli','hetun','moyu','haima','feiyu','zhangyu','bimuyu','pangxie','jianyu','haitun']
+const FISH_ORDER = ['xiaojinyu','xianyugan','jinli','hetun','moyu','haima','feiyu','zhangyu','bimuyu','pangxie','jianyu','haitun','__announcer__']
 
-function getFishTex(fishId: string, idx: number): PIXI.Texture | null {
+export function getFishTex(fishId: string, idx: number = 0): PIXI.Texture | null {
   if (!_fishTexture) return null
   const fishIdx = FISH_ORDER.indexOf(fishId)
   if (fishIdx < 0) return null
-  const cols = 4; const CW = _fishTexture.width / cols; const CH = _fishTexture.height / 3
+  const cols = 4; const CW = _fishTexture.width / cols; const CH = _fishTexture.height / 4
   const col = fishIdx % cols; const row = Math.floor(fishIdx / cols)
-  return new PIXI.Texture(_fishTexture, new PIXI.Rectangle(col * CW, row * CH, CW, CH))
+  const isShark = fishId === '__announcer__'
+  const w = isShark ? CW * 2 : CW
+  return new PIXI.Texture(_fishTexture, new PIXI.Rectangle(col * CW, row * CH, w, CH))
 }
 
 export class FishView {
@@ -33,6 +35,7 @@ export class FishView {
   private phase: number
   state: string
   stateTimer: number
+  dashChance = 0.05
   private _avatarSprite: PIXI.Sprite | null = null
   private _baseSize: number
 
@@ -43,9 +46,12 @@ export class FishView {
     if (tex) {
       this.sprite = new PIXI.Sprite(tex)
       this.sprite.anchor.set(0.5)
-      this.sprite.width = size; this.sprite.height = size
+      // Maintain aspect ratio: height = size, width proportional
+      this.sprite.height = size
+      this.sprite.width = tex.width * (size / tex.height)
     } else {
-      this.sprite = new PIXI.Text('🐟', { fontFamily: 'sans-serif', fontSize: size, align: 'center' } as any)
+      const emoji = fishId === '__announcer__' ? '🦈' : '🐟'
+      this.sprite = new PIXI.Text(emoji, { fontFamily: 'sans-serif', fontSize: size, align: 'center' } as any)
       this.sprite.anchor.set(0.5)
     }
     this.sprite.x = 0; this.sprite.y = 0
@@ -70,7 +76,7 @@ export class FishView {
       if (this.state === 'cruise') {
         if (r < 0.3) this.state = 'turn'
         else if (r < 0.5) this.state = 'pause'
-        else if (r < 0.55) this.state = 'dash'
+        else if (r < 0.50 + this.dashChance) this.state = 'dash'
         else this.state = 'cruise'
       } else if (this.state === 'turn') {
         this.state = 'cruise'; this.vx *= -1
@@ -86,6 +92,18 @@ export class FishView {
     if (this.state === 'pause') speedMul = 0
     else if (this.state === 'dash') speedMul = 6
     else if (this.state === 'turn') speedMul = 0.3
+
+    // Repulsion from announcer fish
+    if (repeller) {
+      const dx = this.container.x - repeller.x
+      const dy = this.container.y - repeller.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < 50 && dist > 0) {
+        const force = (50 - dist) / 50 * 0.8
+        this.container.x += (dx / dist) * force * dt
+        this.container.y += (dy / dist) * force * dt
+      }
+    }
 
     this.container.x += this.vx * dt * speedMul
     this.container.y += this.vy * dt * speedMul
@@ -114,8 +132,10 @@ export class FishView {
   setAvatar(url: string): void {
     if (!url || this._avatarSprite) return
     const img = wx.createImage()
+    const self = this
     img.onload = () => {
-      const fishSize = this.sprite.height || 30
+      if (!self.sprite || !self.container || self._destroyed) return
+      const fishSize = self.sprite.height || 30
       const avatarSize = Math.floor(fishSize * 0.5)
       const canvas = wx.createCanvas()
       canvas.width = avatarSize; canvas.height = avatarSize
@@ -123,11 +143,11 @@ export class FishView {
       ctx.beginPath(); ctx.arc(avatarSize/2, avatarSize/2, avatarSize/2, 0, Math.PI * 2); ctx.clip()
       ctx.drawImage(img, 0, 0, avatarSize, avatarSize)
       const tex = PIXI.Texture.from(canvas)
-      this._avatarSprite = new PIXI.Sprite(tex)
-      this._avatarSprite.width = avatarSize; this._avatarSprite.height = avatarSize
-      this._avatarSprite.anchor.set(0.5)
-      this._avatarSprite.x = 0; this._avatarSprite.y = -fishSize * 0.5 - 6
-      this.container.addChild(this._avatarSprite)
+      self._avatarSprite = new PIXI.Sprite(tex)
+      self._avatarSprite.width = avatarSize; self._avatarSprite.height = avatarSize
+      self._avatarSprite.anchor.set(0.5)
+      self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.5 - 6
+      self.container.addChild(self._avatarSprite)
     }
     img.src = url
   }

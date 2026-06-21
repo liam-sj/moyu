@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import { FishView } from './FishView'
 import type { PondConfig } from '../config/ponds'
+import { ALL_FISH_IDS } from '../config/ponds'
 
 export class PondView {
   readonly container = new PIXI.Container()
@@ -23,24 +24,10 @@ export class PondView {
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
     this._pondConfig = pond
-    this._bounds = { x: 8, y: Math.floor(h * 0.67), w: w - 20, h: Math.floor(h * 0.33) - 8 }
+    this._bounds = { x: 4, y: 4, w: w - 8, h: h - 8 }  // full pond area for fish
     this.container.x = x
     this.container.y = y
 
-    // Pond background (transparent — home page bg handles the visuals)
-    const pondBg = new PIXI.Graphics()
-    pondBg.beginFill(0x000000, 0.10)
-    pondBg.drawRoundedRect(0, 0, w, h, 10)
-    pondBg.endFill()
-    this.container.addChildAt(pondBg, 0)
-
-    // Clip mask so fish stay within water area
-    const mask = new PIXI.Graphics()
-    mask.beginFill(0xFFFFFF)
-    mask.drawRect(0, 0, w, h)
-    mask.endFill()
-    this.container.addChild(mask)
-    this.container.mask = mask
 
     // Rank badge
     const medals = ['🥇', '🥈', '🥉']
@@ -72,38 +59,59 @@ export class PondView {
   /** Create the announcement fish with speech bubble */
   private _spawnAnnouncer(): void {
     if (this._announceFish) return
-    // Special fish emoji (gold)
-    const f = new FishView('jianyu', 0,  // 剑鱼=鲨鱼造型
+    // 🦈 Shark announcer — bigger than regular fish
+    const f = new FishView('__announcer__', 0,
       this._bounds.x + this._bounds.w / 2,
       this._bounds.y + this._bounds.h / 2,
-      24
+      48  // bigger shark
     )
+    f.dashChance = 0.01  // shark rarely dashes
     this._announceFish = f
     this.container.addChild(f.container)
 
     // Speech bubble text
     const bubbleTxt = new PIXI.Text(this._announceTexts[0], {
-      fontFamily: 'sans-serif', fontSize: 10, fill: '#FFFFFF',
-      backgroundColor: '#333333', backgroundAlpha: 0.75,
+      fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#FFFFFF',
+      backgroundColor: '#333333', backgroundAlpha: 0.85,
     } as any)
     bubbleTxt.anchor.set(0.5)
     bubbleTxt.x = 0; bubbleTxt.y = -28
-    f.container.addChild(bubbleTxt)
+    // Counter-flip: keep text readable regardless of fish direction
     this._announceBubble = bubbleTxt
+    f.container.addChild(bubbleTxt)
+  }
+
+  /** Keep announcement bubble readable when fish flips direction */
+  private _fixBubbleDirection(): void {
+    if (this._announceFish && this._announceBubble) {
+      const dir = this._announceFish.container.scale.x
+      this._announceBubble.scale.x = dir > 0 ? 1 : -1
+    }
   }
 
   /** Spawn fish with given count */
-  spawnFish(count: number, contributors?: Array<{ url: string; count: number }>): void {
-    this._spawnAnnouncer()
+  spawnFish(count: number, contributors?: Array<{ url: string; count: number; fishId?: string }>): void {
     this.clearFish()
     this.fishHitAreas = []
     const max = Math.min(count, 30)
+    // Always ensure announcer shark exists (regardless of fish count)
+    this._spawnAnnouncer()
     const avatarList: string[] = []
+    const fishIdList: string[] = []
     if (contributors) {
-      for (const c of contributors) for (let j = 0; j < Math.min(c.count, max); j++) avatarList.push(c.url)
+      for (const c of contributors) {
+        // Only use contributor's fishId if it is a valid known fish type
+        const isValid = c.fishId && ALL_FISH_IDS.indexOf(c.fishId) >= 0
+        const cFishId = isValid ? c.fishId! : this._pondConfig.fishId
+        for (let j = 0; j < Math.min(c.count, max); j++) {
+          avatarList.push(c.url)
+          fishIdList.push(cFishId)
+        }
+      }
     }
     for (let i = 0; i < max; i++) {
-      const f = new FishView(this._pondConfig.fishId, i,
+      const useFishId = i < fishIdList.length ? fishIdList[i] : this._pondConfig.fishId
+      const f = new FishView(useFishId, i,
         this._bounds.x + 10 + ((i * 47 + 13) % Math.max(1, this._bounds.w - 24)),
         this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28)),
         28 + ((i * 19 + 5) % 10)
@@ -165,10 +173,12 @@ export class PondView {
   }
 
   updateFish(dt: number): void {
-    for (const f of this._fish) f.update(dt, this._bounds)
+    const repeller = this._announceFish ? { x: this._announceFish.container.x, y: this._announceFish.container.y } : undefined
+    for (const f of this._fish) f.update(dt, this._bounds, repeller)
     // Announcement fish swims and updates bubble
     if (this._announceFish) {
       this._announceFish.update(dt, this._bounds)
+      this._fixBubbleDirection()
       this._announceTimer += dt
       if (this._announceTimer > 240) {
         this._announceTimer = 0

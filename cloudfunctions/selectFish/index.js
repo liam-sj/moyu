@@ -8,13 +8,17 @@ exports.main = async (event, context) => {
   const _ = db.command
 
   if (action === 'select') {
-    // First time selecting a fish
-    const existing = await db.collection('player_ponds').where({ openId }).get()
-    if (existing.data.length > 0) {
-      return { ok: false, reason: 'already_selected' }
-    }
+    // Select a fish/pond (create or update)
     const avatarUrl = event.avatarUrl || ''
     const nickName = event.nickName || ''
+    const existing = await db.collection('player_ponds').where({ openId }).get()
+    if (existing.data.length > 0) {
+      // Update existing record with new pond/fish choice
+      await db.collection('player_ponds').doc(existing.data[0]._id).update({
+        data: { fishId, pondId, avatarUrl, nickName, joinDate: new Date(), visitedPonds: _.addToSet(pondId) }
+      })
+      return { ok: true }
+    }
     await db.collection('player_ponds').add({
       data: {
         openId, fishId, pondId,

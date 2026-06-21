@@ -110,3 +110,4 @@ DB collections: `player_ponds` (player data), `pond_stats` (daily stats), `pond_
 - Fish coordinates: FishView now uses `container` (PIXI.Container wrapping sprite), NOT `sprite` directly. Always use `f.container.x/y` for position.
 - Cloud function JS syntax: No TypeScript type annotations (`: any`, `: string`). Use plain JS only.
 - `getGlobalPosition()` on PIXI v7 legacy types: Use `(container as any).getGlobalPosition()` to bypass type errors.
+- **No local storage for game data**: All user state (fish selection, level progress, avatar, contributions) must be stored in cloud DB (`player_ponds`, `pond_stats`). Never use `wx.setStorageSync`/`getStorageSync` for user game data. Exception: `fish_pond_cache` (lightweight cache of pond ID for quick lookups).

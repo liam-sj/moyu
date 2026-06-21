@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { GameLogic } from '../core/GameLogic'
 import { CardView, createCardImage } from '../views/CardView'
+import { getFishTex } from '../views/FishView'
 import { Button } from '../views/Button'
 import { getLevelConfig } from '../config/levels'
 import type {
@@ -11,7 +12,7 @@ import type {
   EliminatedEvent, SkillTriggeredEvent, GameOverEvent
 } from '../core/types'
 import { getCardColor } from '../core/Card'
-import { getCachedPond, setCachedPond } from '../config/ponds'
+import { getCachedPond, setCachedPond, getRandomFishId, FISH_TYPES } from '../config/ponds'
 import { log } from '../utils/Logger'
 
 const TAG = 'GameScene'
@@ -299,6 +300,14 @@ export class GameScene extends Scene {
       this.registerHitArea(item.rect, item.cb, 12)
     }
 
+    if (this._pondPickerAreas.length > 0) {
+      for (const item of this._pondPickerAreas) this.registerHitArea(item.rect, item.cb, 25)
+      return
+    }
+    if (this._celebrationAreas.length > 0) {
+      for (const item of this._celebrationAreas) this.registerHitArea(item.rect, item.cb, 30)
+      return
+    }
     if (this.skillOverlay) {
       // Popup active (skill selection or card-type selection)
       for (const item of this.skillHitAreas) {
@@ -1132,6 +1141,165 @@ export class GameScene extends Scene {
     }
   }
 
+  private _showPondPicker(): void {
+    const sysInfo = wx.getSystemInfoSync()
+    const w = sysInfo.windowWidth; const h = sysInfo.windowHeight
+
+    // Dark overlay
+    const overlay = new PIXI.Graphics()
+    overlay.beginFill(0x000000, 0.75); overlay.drawRect(0, 0, w, h); overlay.endFill()
+    this.container.addChild(overlay)
+
+    const title = new PIXI.Text('🎉 通关！选择你的鱼塘', {
+      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#F39C12', align: 'center',
+    } as any)
+    title.anchor.set(0.5); title.x = w / 2; title.y = h * 0.06
+    this.container.addChild(title)
+
+    const sub = new PIXI.Text('鱼种随机分配 · 鱼塘自由选择', {
+      fontFamily: 'sans-serif', fontSize: 12, fill: '#8B7355', align: 'center',
+    } as any)
+    sub.anchor.set(0.5); sub.x = w / 2; sub.y = h * 0.12
+    this.container.addChild(sub)
+
+    const self = this
+    const POND_IDS = ['moyutang','xianyutang','jinlitang','hetuntang','moyutang2','haimatang','feiyutang','zhangyutang','bimuyutang','pangxietang','jianyutang','haituntang']
+    const names = ['摸鱼塘','咸鱼塘','锦鲤塘','河豚塘','墨鱼塘','海马塘','飞鱼塘','章鱼塘','比目鱼塘','螃蟹塘','剑鱼塘','海豚塘']
+    const medals = ['🥇','🥈','🥉']
+    const cols = 2; const rowH = 42; const gap = 6
+    const startY = h * 0.18; const btnW = (w - 32) / cols
+
+    for (let i = 0; i < names.length; i++) {
+      const col = i % cols; const row = Math.floor(i / cols)
+      const bx = 12 + col * (btnW + gap)
+      const by = startY + row * (rowH + gap)
+      const pondId = POND_IDS[i]
+
+      const bg = new PIXI.Graphics()
+      bg.beginFill(0x2C3E50, 0.9)
+      bg.drawRoundedRect(bx, by, btnW, rowH, 8)
+      bg.endFill()
+      this.container.addChild(bg)
+
+      const prefix = i < 3 ? medals[i] + ' ' : `${i + 1}. `
+      const txt = new PIXI.Text(prefix + names[i], {
+        fontFamily: 'sans-serif', fontSize: 14, fill: i < 3 ? '#F1C40F' : '#FFFFFF', align: 'center',
+      } as any)
+      txt.anchor.set(0.5); txt.x = bx + btnW / 2; txt.y = by + rowH / 2
+      this.container.addChild(txt)
+
+      this._pondPickerAreas.push({
+        rect: { x: bx, y: by, w: btnW, h: rowH },
+        cb: async () => {
+          // Random fish — any pond can have any fish type
+          const fishId = getRandomFishId()
+          const fishInfo = FISH_TYPES[fishId]
+          const pondName = names[i]
+          setCachedPond({ pondId, fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
+
+          // Collect avatar URL from WeChat auth or local cache
+          let avatarUrl = ''
+          let nickName = ''
+          try {
+            const userRes = await new Promise<any>((resolve) => {
+              if (typeof wx !== 'undefined') {
+                wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
+              } else { resolve(null) }
+            })
+            if (userRes?.userInfo) {
+              avatarUrl = userRes.userInfo.avatarUrl || ''
+              nickName = userRes.userInfo.nickName || ''
+            }
+          } catch (e) {}
+          // Fallback to local storage
+          if (!avatarUrl) {
+            try { avatarUrl = wx.getStorageSync('user_avatar') || '' } catch (e) {}
+          }
+
+          try {
+            await wx.cloud.callFunction({ name: 'selectFish', data: { action: 'select', fishId, pondId, avatarUrl, nickName } })
+            await wx.cloud.callFunction({ name: 'contribute', data: {} })
+          } catch (e) { console.log('[GameScene] 云函数失败', e) }
+          // Show celebration with fish sprite, then navigate to home
+          self._showFishCelebration(fishId, fishInfo, pondName)
+        }
+      })
+    }
+  }
+
+  /** Celebration overlay: shows the random fish sprite after pond selection */
+  private _showFishCelebration(fishId: string, fishInfo: { name: string; emoji: string }, pondName: string): void {
+    const w = this.screenW; const h = this.screenH
+
+    // Clear pond picker areas so hit-test switches to celebration
+    this._pondPickerAreas = []
+
+    // Dark overlay
+    const overlay = new PIXI.Graphics()
+    overlay.beginFill(0x0A1628, 0.93); overlay.drawRect(0, 0, w, h); overlay.endFill()
+    this.container.addChild(overlay)
+
+    // Title
+    const congrats = new PIXI.Text('🎉 恭喜！', {
+      fontFamily: 'sans-serif', fontSize: 28, fontWeight: 'bold', fill: '#F1C40F',
+    } as any)
+    congrats.anchor.set(0.5); congrats.x = w / 2; congrats.y = h * 0.16
+    this.container.addChild(congrats)
+
+    // Fish image from atlas (fallback to emoji text if atlas not loaded)
+    const fishSize = 120
+    const tex = getFishTex(fishId, 0)
+    const fishCtn = new PIXI.Container()
+    fishCtn.x = w / 2; fishCtn.y = h * 0.38
+    if (tex) {
+      const sprite = new PIXI.Sprite(tex)
+      sprite.anchor.set(0.5)
+      sprite.height = fishSize
+      sprite.width = tex.width * (fishSize / tex.height)
+      fishCtn.addChild(sprite)
+    } else {
+      const fallback = new PIXI.Text(fishInfo.emoji, { fontFamily: 'sans-serif', fontSize: 80 } as any)
+      fallback.anchor.set(0.5)
+      fishCtn.addChild(fallback)
+    }
+    this.container.addChild(fishCtn)
+
+    // Fish name
+    const fishNameTxt = new PIXI.Text(`你摸到了一条 ${fishInfo.name}！`, {
+      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#FFFFFF',
+    } as any)
+    fishNameTxt.anchor.set(0.5); fishNameTxt.x = w / 2; fishNameTxt.y = h * 0.56
+    this.container.addChild(fishNameTxt)
+
+    // Pond name
+    const pondTxt = new PIXI.Text(`加入了 ${pondName}`, {
+      fontFamily: 'sans-serif', fontSize: 16, fill: '#7FB3D8',
+    } as any)
+    pondTxt.anchor.set(0.5); pondTxt.x = w / 2; pondTxt.y = h * 0.63
+    this.container.addChild(pondTxt)
+
+    // Tap hint
+    const hint = new PIXI.Text('👆 点击任意位置继续', {
+      fontFamily: 'sans-serif', fontSize: 14, fill: '#5A6B7D',
+    } as any)
+    hint.anchor.set(0.5); hint.x = w / 2; hint.y = h * 0.76
+    this.container.addChild(hint)
+
+    // Tap anywhere to go home
+    const self = this
+    this._celebrationAreas = [{
+      rect: { x: 0, y: 0, w, h },
+      cb: () => {
+        self._celebrationAreas = []
+        const { MenuScene } = require('./MenuScene')
+        self.manager.replace(new MenuScene())
+      }
+    }]
+  }
+
+  private _pondPickerAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _celebrationAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+
   private onSkillSelected(skill: SkillConfig): void {
     this._dismissSkillPanel()
     const ctx = this.logic.getSkillContext()
@@ -1141,17 +1309,10 @@ export class GameScene extends Scene {
 
   private onGameOver(result: GameResult): void {
     if (result.won) {
-      // Check if player needs to select fish after clearing Level 2
-      if (this.levelId === 'level2' && !getCachedPond()) {
-        wx.cloud.callFunction({ name: 'updateAvatar', data: { fishSelectionShown: true } })
-        const { SelectFishScene } = require('./SelectFishScene')
-        this.manager.replace(new SelectFishScene())
-        return
-      }
-
-      // Set cleared level 2 flag
+      // Pick pond on Level 2 win
       if (this.levelId === 'level2') {
-        wx.cloud.callFunction({ name: 'updateAvatar', data: { clearedLevel2: true } })
+        this._showPondPicker()
+        return
       }
 
       // Report contribution (only for Level 2 clears)
