@@ -83,7 +83,8 @@ Events between game components use EventBus: `boardInit`, `boardChanged`, `slotC
 All animations are driven by `onUpdate(dt)` — no per-card PIXI tickers. Batch arrays: `_dealingCards` (deal animation), `_shuffleCards` (shuffle), `_flyEffects` (card-to-slot fly), `_effects` (particle bursts). Timeline based on `Date.now()` for smooth real-time interpolation.
 
 ### Cloud Integration
-Cloud env: `cloud1-d5gtuwnx0aacd8adb`. Cloud functions in `cloudfunctions/`:
+Cloud env: `cloud1-d5gtuwnx0aacd8adb`. Database design: [docs/database-design.md](docs/database-design.md).
+Cloud functions in `cloudfunctions/`:
 - `selectFish`: Player selects/changes fish (stores openId, pondId, avatarUrl)
 - `contribute`: Record Level 2 clear (increments pond dailyClears, stores avatarUrl)
 - `getPondRanking`: Returns 3 ranking dimensions + contributor avatars per pond

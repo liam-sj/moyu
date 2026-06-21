@@ -29,6 +29,28 @@ export function getPondById(id: string): PondConfig | undefined {
   return PONDS.find(p => p.id === id)
 }
 
+/** All fish types that players can get (excluding __announcer__ shark) */
+export const FISH_TYPES: Record<string, { name: string; emoji: string }> = {
+  xiaojinyu: { name: '小金鱼', emoji: '🐟' },
+  xianyugan: { name: '咸鱼干', emoji: '🦐' },
+  jinli:    { name: '锦鲤',   emoji: '🐠' },
+  hetun:    { name: '河豚',   emoji: '🐡' },
+  moyu:     { name: '墨鱼',   emoji: '🦑' },
+  haima:    { name: '海马',   emoji: '🐬' },
+  feiyu:    { name: '飞鱼',   emoji: '🦅' },
+  zhangyu:  { name: '章鱼',   emoji: '🐙' },
+  bimuyu:   { name: '比目鱼', emoji: '🐟' },
+  pangxie:  { name: '螃蟹',   emoji: '🦀' },
+  jianyu:   { name: '剑鱼',   emoji: '⚔️' },
+  haitun:   { name: '海豚',   emoji: '🐬' },
+}
+
+export const ALL_FISH_IDS = Object.keys(FISH_TYPES)
+
+export function getRandomFishId(): string {
+  return ALL_FISH_IDS[Math.floor(Math.random() * ALL_FISH_IDS.length)]
+}
+
 const CACHE_KEY = 'fish_pond_cache'
 
 export interface PlayerPondCache {

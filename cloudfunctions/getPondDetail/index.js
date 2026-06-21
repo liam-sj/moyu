@@ -1,7 +1,16 @@
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
-const _ = db.command
+
+/** Treat missing collection as empty */
+async function safeGet(query) {
+  try { return await query.get() }
+  catch (e) { if (e.errCode === -502005) return { data: [] }; throw e }
+}
+async function safeCount(query) {
+  try { return await query.count() }
+  catch (e) { if (e.errCode === -502005) return { total: 0 }; throw e }
+}
 
 exports.main = async (event, context) => {
   try {
@@ -9,32 +18,51 @@ exports.main = async (event, context) => {
     const date = todayStr()
     const openId = cloud.getWXContext().OPENID
 
-    if (!pondId) {
-      return { ok: false, reason: 'missing_pondId' }
-    }
+    if (!pondId) return { ok: false, reason: 'missing_pondId' }
 
-    // Get pond stats for today
-    const stats = await db.collection('pond_stats').where({ pondId, date }).get()
-    const stat = stats.data[0] || { dailyClears: 0, activeMembers: 0, totalMembers: 0 }
+    // ── 1. Pond daily stats ──
+    const stats = await safeGet(db.collection('pond_daily_stats').where({ pondId, date }))
+    const stat = stats.data[0] || { dailyClears: 0, activePlayers: [] }
 
-    // Get ranking position (by dailyClears)
-    const allPonds = await db.collection('pond_stats').where({ date }).orderBy('dailyClears', 'desc').get()
+    // ── 2. Rank (by dailyClears among all ponds today) ──
+    const allPonds = await safeGet(
+      db.collection('pond_daily_stats').where({ date }).orderBy('dailyClears', 'desc')
+    )
     const rank = allPonds.data.findIndex(p => p.pondId === pondId) + 1
 
-    // Contributors come from pond_stats directly
-    const heroes = (stat.contributors || []).sort((a, b) => b.count - a.count).slice(0, 10)
+    // ── 3. Heroes: top contributors today from contributions collection ──
+    const contribs = await safeGet(db.collection('contributions').where({ pondId, date }))
 
-    // Get streak data for this pond
-    const streakResult = await db.collection('pond_streaks').where({ pondId }).get()
+    // Group by openId
+    const byPlayer = {}
+    for (const c of contribs.data) {
+      const uid = c.openId
+      if (!byPlayer[uid]) {
+        byPlayer[uid] = {
+          nickName: c.nickName || '',
+          avatarUrl: c.avatarUrl || '',
+          fishId: c.fishId || '',
+          todayClears: 0
+        }
+      }
+      byPlayer[uid].todayClears++
+    }
+
+    const heroes = Object.values(byPlayer)
+      .sort((a, b) => b.todayClears - a.todayClears)
+      .slice(0, 10)
+
+    // ── 4. Streak ──
+    const streakResult = await safeGet(db.collection('pond_streaks').where({ pondId }))
     const streakDays = streakResult.data.length > 0 ? streakResult.data[0].streakDays : 0
 
-    // Check if current user is in this pond
+    // ── 5. My contribution ──
     let myContribution = 0
     if (openId) {
-      const player = await db.collection('player_ponds').where({ openId }).get()
-      if (player.data.length > 0 && player.data[0].pondId === pondId) {
-        myContribution = player.data[0].todayContribution || 0
-      }
+      const myCount = await safeCount(
+        db.collection('contributions').where({ openId, pondId, date })
+      )
+      myContribution = myCount.total
     }
 
     return {
@@ -44,12 +72,13 @@ exports.main = async (event, context) => {
       fishEmoji: FISH_EMOJIS[pondId] || '🐟',
       rank: rank > 0 ? rank : allPonds.data.length + 1,
       dailyClears: stat.dailyClears || 0,
-      activeMembers: (stat.uniquePlayers || []).length,
-      totalMembers: stat.totalMembers || 0,
-      perCapita: stat.uniquePlayers?.length > 0 ? Math.round((stat.dailyClears / stat.uniquePlayers.length) * 100) / 100 : 0,
+      activePlayers: (stat.activePlayers || []).length,
+      perCapita: (stat.activePlayers || []).length > 0
+        ? Math.round((stat.dailyClears / stat.activePlayers.length) * 100) / 100
+        : 0,
       streakDays,
       myContribution,
-      heroes: heroes.map(h => ({ nickName: h.nickName, avatarUrl: h.avatarUrl, todayClears: h.count }))
+      heroes
     }
   } catch (err) {
     console.error('[getPondDetail]', err)

@@ -3,6 +3,7 @@ import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { getCachedPond, setCachedPond, getPondById, PONDS, PondConfig } from '../config/ponds'
 import { PondView } from '../views/PondView'
+import logger from '../utils/Logger'
 import { getFishTex } from '../views/FishView'
 import { generatePoster } from '../utils/SharePoster'
 
@@ -54,6 +55,18 @@ export class MenuScene extends Scene {
 
     // Auth: cloud-stored avatar takes priority, fallback to local storage
     this._setupAuth(w, h)
+
+    // Listen for async join-pond result (fired from GameScene background task)
+    this.listen<{ ok: boolean; pondName?: string; fishName?: string; fishEmoji?: string; reason?: string }>('pondJoined', (e) => {
+      if (e.ok) {
+        wx.showToast({ title: `🐟 加入${e.pondName}！摸到${e.fishName}`, icon: 'none', duration: 2500 })
+        // Reload pond to show new fish
+        const sysInfo = wx.getSystemInfoSync()
+        this._loadRealCounts(sysInfo.windowWidth, 4)
+      } else {
+        wx.showToast({ title: `加入鱼塘失败: ${e.reason}`, icon: 'none', duration: 2000 })
+      }
+    })
 
     // Button: 加入鱼塘
     const btnW = 180; const btnH = 42; const btnX = (w - btnW) / 2; const btnY1 = Math.floor(h * 0.38)
@@ -148,7 +161,7 @@ export class MenuScene extends Scene {
     })
 
     this._authBtn.onTap((res: any) => {
-      console.log('[MenuScene] UserInfoButton tapped', JSON.stringify(res))
+      logger.info('MenuScene', 'UserInfoButton tapped ' + JSON.stringify(res))
       if (res.errMsg === 'getUserInfo:ok' && res.userInfo) {
         const avatarUrl = res.userInfo.avatarUrl || ''
         const nickName = res.userInfo.nickName || ''
@@ -156,9 +169,9 @@ export class MenuScene extends Scene {
         if (self._authBtn) { self._authBtn.destroy(); self._authBtn = null }
         // Upload avatar to cloud + apply to pond
         self._applyAvatar(avatarUrl)
-        console.log('[MenuScene] 授权成功 avatarUrl=', avatarUrl, 'nickName=', nickName)
+        logger.info('MenuScene', `授权成功 avatarUrl=${avatarUrl} nickName=${nickName}`)
       } else {
-        console.log('[MenuScene] 授权失败或取消', res.errMsg)
+        logger.info('MenuScene', '授权失败或取消', res.errMsg)
       }
     })
   }
@@ -169,14 +182,14 @@ export class MenuScene extends Scene {
     const cachedPond = getCachedPond()
     const pondId = cachedPond?.pondId
 
-    // 1. 上传头像到云数据库 player_ponds
+    // 1. 上传头像到云数据库 players
     if (pondId) {
       wx.cloud.callFunction({
         name: 'updateAvatar',
         data: { avatarUrl }
       }).then((res: any) => {
-        console.log('[MenuScene] updateAvatar返回', JSON.stringify((res as any).result))
-      }).catch((e: any) => console.log('[MenuScene] updateAvatar失败', e))
+        logger.info('MenuScene', 'updateAvatar返回 ' + JSON.stringify((res as any).result))
+      }).catch((e: any) => logger.warn('MenuScene', 'updateAvatar失败', e))
     }
 
     // 2. 本地展示：我的鱼塘显示头像
@@ -194,12 +207,12 @@ export class MenuScene extends Scene {
       const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
       data = (res as any).result
       this._rankingCloudData = data  // store for ranking overlay
-      console.log('[MenuScene] getPondRanking返回', JSON.stringify({ ok: data?.ok, myPond: data?.myPond?.pondId }))
+      logger.info('MenuScene', 'getPondRanking返回 ' + JSON.stringify({ ok: data?.ok, myPond: data?.myPond?.pondId, fatPondLen: data?.fatPondRank?.length, contribKeys: Object.keys(data?.contributors || {}) }))
       if (data.myPond) {
         this._myCloudData = data.myPond
         if (data.myPond.avatarUrl) this._applyAvatar(data.myPond.avatarUrl)
       }
-    } catch (e) { console.log('[MenuScene] getPondRanking failed', e) }
+    } catch (e) { logger.warn('MenuScene', 'getPondRanking failed', e) }
 
     // Determine which pond to show: user selection > my pond > #1 ranked
     let targetPondId = this._currentPondId || data?.myPond?.pondId
@@ -207,6 +220,11 @@ export class MenuScene extends Scene {
       targetPondId = data.fatPondRank[0].pondId
     }
     if (!targetPondId) targetPondId = PONDS[0].id
+
+    // Clean up old pond views first
+    for (const pv of this._pondViews) { this.container.removeChild(pv.container); pv.container.destroy({ children: true }) }
+    this._pondViews = []
+    this._pondHitAreas = []
 
     const pondCfg = getPondById(targetPondId) || PONDS[0]
     const screenH = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
@@ -226,10 +244,9 @@ export class MenuScene extends Scene {
     // Spawn fish if data available
     if (data?.ok && data.fatPondRank) {
       const info = data.fatPondRank.find((d: any) => d.pondId === targetPondId)
-      const count = info ? Math.min(info.dailyClears, 30) : 0
-      const contribs = (data.contributors && data.contributors[targetPondId]?.length) ? data.contributors[targetPondId] : undefined
-      if (count > 0) { pv.spawnFish(count, contribs) }
-      else { pv.spawnFish(0) }  // ensures shark announcer spawns
+      const entries = (data.fishEntries && data.fishEntries[targetPondId]) || []
+      logger.info('MenuScene', `spawnFish targetPondId=${targetPondId} fishCount=${entries.length}`)
+      pv.spawnFromEntries(entries)
       pv.setBadge(info ? `${info.dailyClears}条` : '0条')
       if (info) { const rank = info.rank || (data.fatPondRank.indexOf(info) + 1); pv.updateRank?.(rank) }
     }
@@ -322,7 +339,7 @@ export class MenuScene extends Scene {
       this._rankOverlayAreas.push({
         rect: { x: 16, y: ry, w: w - 32, h: rowH },
         cb: () => {
-          console.log('[MenuScene] 排行榜选中鱼塘', pond.id)
+          logger.info('MenuScene', '排行榜选中鱼塘 ' + pond.id)
           self._rankOverlay?.destroy({ children: true })
           self._rankOverlay = null
           self._rankOverlayAreas = []
@@ -363,29 +380,14 @@ export class MenuScene extends Scene {
     } else {
       setCachedPond({ pondId, fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
     }
-    const pondCfg = cfg || PONDS[0]
-    // Remove old pond and create new one
+
+    // Clean up old pond views before _loadRealCounts creates new ones
     for (const pv of this._pondViews) { this.container.removeChild(pv.container); pv.container.destroy({ children: true }) }
     this._pondViews = []
     this._pondHitAreas = []
 
-    const barY = 4
-    const pondW = w - 16
-    const h = typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667
-    const pondH = Math.floor(h / 3)
-    const px = 0
-    const py = h - pondH
-
-    const pv = new PondView(pondCfg, 0, px, py, pondW, pondH)
-    this.container.addChild(pv.container)
-    this._pondViews = [pv]
-    this._pondHitAreas.push({
-      rect: { x: px, y: py, w: pondW, h: 22 },
-      cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(pondId)) }
-    })
-
-    // Reload fish data for this pond
-    this._loadRealCounts(w, barY)
+    // Reload fish data for this pond (_loadRealCounts handles PondView creation)
+    this._loadRealCounts(w, 4)
   }
 
   private _currentPondId: string | null = null

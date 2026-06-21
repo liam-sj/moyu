@@ -13,14 +13,65 @@ export class PondView {
   private _avatarSprites: PIXI.Container[] = []
   private _announceFish: FishView | null = null
   private _announceBubble: PIXI.Text | null = null
-  private _announceTexts = [
-    '🐟 通关第二关加入鱼塘！',
-    '🏆 为你的鱼塘争光！',
-    '🐠 点击小鱼会冲刺哦',
-    '🔥 连续通关霸榜吧！',
-  ]
   private _announceIdx = 0
   private _announceTimer = 0
+
+  /** Generate context-aware messages based on current fish count */
+  private _getAnnounceTexts(): string[] {
+    const n = this._fish.length
+
+    if (n === 0) {
+      return [
+        '这片鱼塘…就我一个？',
+        '🐟 通关第二关加入鱼塘！',
+        '🏆 来为鱼塘争光吧！',
+        '怎么一条小鱼都没有…',
+        '新鱼塘开张，招鱼啦！',
+        '再不来鱼我要摸鱼了！',
+      ]
+    }
+
+    if (n <= 3) {
+      return [
+        '嘿，新来的！',
+        '来这边报到，别乱游！',
+        '🐠 点击小鱼会冲刺哦',
+        '欢迎新伙伴加入～',
+        '队伍越来越壮大了！',
+        '🔥 连续通关霸榜吧！',
+        '别害羞，游过来点！',
+        '新鱼要先熟悉规矩！',
+      ]
+    }
+
+    if (n <= 8) {
+      return [
+        '别靠我太近！',
+        '都给我老实游！',
+        '我是塘管，有事找我！',
+        '谁又偷偷摸鱼了？',
+        '保持队形，不要掉队！',
+        '🐠 人多力量大！',
+        '今天鱼气不错～',
+        '再通关还能加鱼哦！',
+      ]
+    }
+
+    // Crowded pond (n > 8)
+    return [
+      '鱼太多了，别挤！',
+      '谁再挤我就冲刺了！',
+      '保持距离！保持距离！',
+      '后面那位别推我！！',
+      '我快被挤成鱼干了…',
+      '🏆 鱼塘爆满，太强了！',
+      '别靠太近，我有脾气！',
+      '再挤我要咬鱼了！！',
+      '给我让条水路出来！',
+      '鲨鱼也是需要空间的！',
+      '今天人山人海啊…',
+    ]
+  }
 
   constructor(pond: PondConfig, rank: number, x: number, y: number, w: number, h: number) {
     this._pondConfig = pond
@@ -70,7 +121,7 @@ export class PondView {
     this.container.addChild(f.container)
 
     // Speech bubble text
-    const bubbleTxt = new PIXI.Text(this._announceTexts[0], {
+    const bubbleTxt = new PIXI.Text(this._getAnnounceTexts()[0], {
       fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#FFFFFF',
       backgroundColor: '#333333', backgroundAlpha: 0.85,
     } as any)
@@ -89,18 +140,16 @@ export class PondView {
     }
   }
 
-  /** Spawn fish with given count */
+  /** Spawn fish with given count (deprecated, prefer spawnFromEntries) */
   spawnFish(count: number, contributors?: Array<{ url: string; count: number; fishId?: string }>): void {
     this.clearFish()
     this.fishHitAreas = []
     const max = Math.min(count, 30)
-    // Always ensure announcer shark exists (regardless of fish count)
     this._spawnAnnouncer()
     const avatarList: string[] = []
     const fishIdList: string[] = []
     if (contributors) {
       for (const c of contributors) {
-        // Only use contributor's fishId if it is a valid known fish type
         const isValid = c.fishId && ALL_FISH_IDS.indexOf(c.fishId) >= 0
         const cFishId = isValid ? c.fishId! : this._pondConfig.fishId
         for (let j = 0; j < Math.min(c.count, max); j++) {
@@ -109,6 +158,28 @@ export class PondView {
         }
       }
     }
+    this._spawnFishes(max, fishIdList, avatarList)
+  }
+
+  /** Spawn fish from flat entries — each entry is one fish with its own type */
+  spawnFromEntries(entries: Array<{ url: string; fishId: string }>): void {
+    this.clearFish()
+    this.fishHitAreas = []
+    const max = Math.min(entries.length, 30)
+    this._spawnAnnouncer()
+    const fishIdList: string[] = []
+    const avatarList: string[] = []
+    for (let i = 0; i < max; i++) {
+      const e = entries[i]
+      const isValid = e.fishId && ALL_FISH_IDS.indexOf(e.fishId) >= 0
+      fishIdList.push(isValid ? e.fishId : this._pondConfig.fishId)
+      avatarList.push(e.url || '')
+    }
+    this._spawnFishes(max, fishIdList, avatarList)
+  }
+
+  /** Internal: create fish views from prepared lists */
+  private _spawnFishes(max: number, fishIdList: string[], avatarList: string[]): void {
     for (let i = 0; i < max; i++) {
       const useFishId = i < fishIdList.length ? fishIdList[i] : this._pondConfig.fishId
       const f = new FishView(useFishId, i,
@@ -119,7 +190,6 @@ export class PondView {
       if (i < avatarList.length) f.setAvatar(avatarList[i])
       this._fish.push(f)
       this.container.addChild(f.container)
-      // Per-fish tap: dash away (coordinates relative to pond container)
       this.fishHitAreas.push({
         rect: { x: f.container.x, y: f.container.y, w: 1, h: 1 },
         cb: () => { f.state = 'dash'; f.stateTimer = 30 + Math.random() * 40 }
@@ -182,8 +252,9 @@ export class PondView {
       this._announceTimer += dt
       if (this._announceTimer > 240) {
         this._announceTimer = 0
-        this._announceIdx = (this._announceIdx + 1) % this._announceTexts.length
-        if (this._announceBubble) this._announceBubble.text = this._announceTexts[this._announceIdx]
+        const texts = this._getAnnounceTexts()
+        this._announceIdx = (this._announceIdx + 1) % texts.length
+        if (this._announceBubble) this._announceBubble.text = texts[this._announceIdx]
       }
     }
   }
