@@ -99,7 +99,7 @@ export class GameScene extends Scene {
       bg.alpha = 0.65
       this.container.addChildAt(bg, 0)
     }
-    bgImg.src = 'assets/cards/back.png'
+    bgImg.src = 'assets/cards/back.jpg'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))

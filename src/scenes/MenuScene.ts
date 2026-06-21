@@ -47,7 +47,7 @@ export class MenuScene extends Scene {
       bgSp.width = w; bgSp.height = h
       this.container.addChildAt(bgSp, 0)
     }
-    homeImg.src = 'assets/home.png'
+    homeImg.src = 'assets/home.jpg'
 
     const barY = 4
     // Single pond — will be created after cloud data loads
