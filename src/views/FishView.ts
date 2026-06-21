@@ -127,19 +127,25 @@ export class FishView {
       const crabBottom = bounds.y + bounds.h - bottomMargin
       if (this.container.y < crabTop) { this.vy = Math.abs(this.vy); this.container.y = crabTop + 1 }
       if (this.container.y > crabBottom) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = crabBottom - 1 }
-      // Horizontal bounds
+      // Crab still bounces at horizontal edges
       if (this.container.x < bounds.x + margin) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + margin + 1 }
       if (this.container.x > bounds.x + bounds.w - margin - 6) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - margin - 7 }
     } else {
-      // Normal fish: bounce 100px above bottom
-      const bouncedX = this.container.x < bounds.x + margin || this.container.x > bounds.x + bounds.w - margin - 6
+      // ── Wrap-around on horizontal edges ──
+      const wrapBuffer = 40  // how far off-screen before wrapping
+      if (this.container.x < bounds.x - wrapBuffer && this.vx < 0) {
+        this.container.x = bounds.x + bounds.w + wrapBuffer
+      }
+      if (this.container.x > bounds.x + bounds.w + wrapBuffer && this.vx > 0) {
+        this.container.x = bounds.x - wrapBuffer
+      }
+
+      // Vertical bounce stays as-is
       const bouncedY = this.container.y < bounds.y + margin || this.container.y > bounds.y + bounds.h - bottomMargin
-      if (bouncedX || bouncedY) {
+      if (bouncedY) {
         this.state = 'dash'
         this.stateTimer = 20 + Math.random() * 30
       }
-      if (this.container.x < bounds.x + margin) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + margin + 1 }
-      if (this.container.x > bounds.x + bounds.w - margin - 6) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - margin - 7 }
       if (this.container.y < bounds.y + margin) { this.vy = Math.abs(this.vy) * 0.3; this.container.y = bounds.y + margin + 1 }
       if (this.container.y > bounds.y + bounds.h - bottomMargin) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = bounds.y + bounds.h - bottomMargin - 1 }
     }

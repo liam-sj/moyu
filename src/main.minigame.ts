@@ -17,11 +17,16 @@ try {
 
 // ── 创建 PIXI Application ──
 const sysInfo = wx.getSystemInfoSync()
+const dpr = sysInfo.pixelRatio || 2
+
+const canvas = getMainCanvas()
+canvas.width = sysInfo.windowWidth * dpr
+canvas.height = sysInfo.windowHeight * dpr
 
 const app = new PIXI.Application({
-  view: getMainCanvas(),
-  width: sysInfo.windowWidth,
-  height: sysInfo.windowHeight,
+  view: canvas,
+  width: canvas.width,
+  height: canvas.height,
   backgroundColor: 0x000000,
   backgroundAlpha: 0,
   antialias: true,
@@ -29,6 +34,9 @@ const app = new PIXI.Application({
   autoDensity: false,
   forceCanvas: true,
 })
+
+// Scale the stage so all logical-pixel coordinates work as-is
+app.stage.scale.set(dpr, dpr)
 
 // ── 加载卡片合图纹理 ──
 import { loadCardAtlas } from './views/CardView'
