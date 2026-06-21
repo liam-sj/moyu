@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { FishView } from './FishView'
 import type { PondConfig } from '../config/ponds'
 import { ALL_FISH_IDS } from '../config/ponds'
+import { screenPos, px } from '../platform/PixiAdapter'
 
 export class PondView {
   readonly container = new PIXI.Container()
@@ -202,15 +203,18 @@ export class PondView {
     }
   }
 
-  /** Update per-fish hit area positions (called each frame, returns screen-space rects) */
-  getFishHitAreas(ox: number, oy: number): Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> {
+  /** Update per-fish hit area positions (called each frame, returns logical-pixel rects) */
+  getFishHitAreas(): Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> {
     const result: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+    const dpr = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().pixelRatio : 1) || 2
+    const size = 36  // logical pixels
     for (let i = 0; i < this._fish.length; i++) {
       const f = this._fish[i]
       const cb = this.fishHitAreas[i]?.cb
       if (cb) {
+        const sp = screenPos(f.container)
         result.push({
-          rect: { x: ox + f.container.x - 18, y: oy + f.container.y - 18, w: 36, h: 36 },
+          rect: { x: sp.x / dpr - size / 2, y: sp.y / dpr - size / 2, w: size, h: size },
           cb
         })
       }

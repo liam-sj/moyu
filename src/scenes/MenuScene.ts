@@ -6,6 +6,7 @@ import { PondView } from '../views/PondView'
 import logger from '../utils/Logger'
 import { getFishTex } from '../views/FishView'
 import { generatePoster } from '../utils/SharePoster'
+import { screenPos, px, getDPR } from '../platform/PixiAdapter'
 
 export class MenuScene extends Scene {
   private _startHitArea: { x: number; y: number; w: number; h: number } | null = null
@@ -413,12 +414,15 @@ export class MenuScene extends Scene {
     for (const pv of this._pondViews) {
       pv.updateFish(dt)
       if (!pv.container || !pv.container.parent) continue
-      const gp = (pv.container as any).getGlobalPosition()
-      const pw = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowWidth : 375) - 60
-      this.registerHitArea({ x: gp.x + 8, y: gp.y + 22, w: pw - 16, h: 210 - 26 }, () => {
-        pv.dashNear(this._lastTouchX - gp.x, this._lastTouchY - gp.y, 60)
+      const sp = screenPos(pv.container)
+      const dpr = getDPR()
+      const sysInfo = typeof wx !== 'undefined' ? wx.getSystemInfoSync() : { windowWidth: 375 }
+      const pw = sysInfo.windowWidth - 60
+      // Hit areas in logical pixels (matching touch coordinates)
+      this.registerHitArea({ x: sp.x / dpr + 8, y: sp.y / dpr + 22, w: pw - 16, h: 210 - 26 }, () => {
+        pv.dashNear(this._lastTouchX - sp.x / dpr, this._lastTouchY - sp.y / dpr, 60)
       }, 16)
-      for (const item of pv.getFishHitAreas(gp.x, gp.y)) this.registerHitArea(item.rect, item.cb, 20)
+      for (const item of pv.getFishHitAreas()) this.registerHitArea(item.rect, item.cb, 20)
     }
   }
 }

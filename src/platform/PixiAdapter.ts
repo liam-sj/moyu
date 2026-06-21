@@ -129,3 +129,23 @@ export function installPolyfills(): void {
 export function getMainCanvas(): any {
   return (globalThis as any).__pixi_main_canvas || wx.createCanvas()
 }
+
+/** Get screen-space (physical pixel) position of a PIXI container, accounting for stage scale */
+export function screenPos(container: any): { x: number; y: number } {
+  const gp = container.getGlobalPosition()
+  return { x: gp.x, y: gp.y }
+}
+
+/** Device pixel ratio, cached */
+let _dpr = 0
+export function getDPR(): number {
+  if (_dpr === 0) {
+    _dpr = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().pixelRatio : 1) || 2
+  }
+  return _dpr
+}
+
+/** Convert logical pixel value to physical screen pixels */
+export function px(v: number): number {
+  return v * getDPR()
+}
