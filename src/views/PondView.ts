@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { FishView } from './FishView'
 import type { PondConfig } from '../config/ponds'
 import { ALL_FISH_IDS } from '../config/ponds'
-import { screenPos, px } from '../platform/PixiAdapter'
+import { screenPos, px, getDPR } from '../platform/PixiAdapter'
 
 export class PondView {
   readonly container = new PIXI.Container()
@@ -52,7 +52,7 @@ export class PondView {
         '我是塘管，有事找我！',
         '谁又偷偷摸鱼了？',
         '保持队形，不要掉队！',
-        '🐠 人多力量大！',
+        '🐠 鱼多力量大！',
         '今天鱼气不错～',
         '再通关还能加鱼哦！',
       ]
@@ -70,7 +70,7 @@ export class PondView {
       '再挤我要咬鱼了！！',
       '给我让条水路出来！',
       '鲨鱼也是需要空间的！',
-      '今天人山人海啊…',
+      '今天鱼山鱼海啊…',
     ]
   }
 
@@ -80,24 +80,6 @@ export class PondView {
     this.container.x = x
     this.container.y = y
 
-
-    // Rank badge
-    const medals = ['🥇', '🥈', '🥉']
-    const rankStr = rank < 3 ? medals[rank] : `${rank + 1}`
-    const rankTxt = new PIXI.Text(rankStr, {
-      fontFamily: 'sans-serif', fontSize: 12, fontWeight: 'bold',
-      fill: rank < 3 ? '#F1C40F' : '#FFFFFF',
-    } as any)
-    rankTxt.x = 4; rankTxt.y = 3
-    this.container.addChild(rankTxt)
-    ;(this as any)._rankTxt = rankTxt
-
-    // Pond name
-    const nameTxt = new PIXI.Text(`${pond.emoji} ${pond.name}`, {
-      fontFamily: 'sans-serif', fontSize: 10, fontWeight: 'bold', fill: '#FFFFFF',
-    } as any)
-    nameTxt.x = 28; nameTxt.y = 4
-    this.container.addChild(nameTxt)
 
     // Fish count badge
     const badgeTxt = new PIXI.Text('···', {
@@ -273,13 +255,8 @@ export class PondView {
     if (b) b.text = text
   }
 
-  updateRank(rank: number): void {
-    const rt = (this as any)._rankTxt as PIXI.Text
-    if (!rt) return
-    const medals = ['🥇', '🥈', '🥉']
-    rt.text = rank < 3 ? medals[rank] : `${rank + 1}`
-    rt.style.fill = rank < 3 ? '#F1C40F' : '#FFFFFF'
-  }
+  /** @deprecated Rank is now shown on MenuScene's bulletin board */
+  updateRank(_rank: number): void {}
 
   /** Show contributor avatars above fish area */
   showContributors(contributors: Array<{ url: string; count: number }>): void {
@@ -292,8 +269,10 @@ export class PondView {
       const ctn = new PIXI.Container()
       const img = wx.createImage()
       img.onload = () => {
-        const canvas = wx.createCanvas(); canvas.width = size; canvas.height = size
+        const dpr = getDPR()
+        const canvas = wx.createCanvas(); canvas.width = size * dpr; canvas.height = size * dpr
         const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+        ctx.scale(dpr, dpr)
         ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2); ctx.clip()
         ctx.drawImage(img, 0, 0, size, size)
         const tex = PIXI.Texture.from(canvas)

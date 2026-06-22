@@ -161,6 +161,15 @@ export class Board {
     this._addFuncCards(list, FUNC_TYPE.POSITIVE, posCount)
     this._addFuncCards(list, FUNC_TYPE.DUAL, dualCount)
     this._shuffle(list)
+    // Validate 3n guarantee: every card type must appear in multiples of 3
+    const counts: Record<string, number> = {}
+    for (const item of list) counts[item.config.id] = (counts[item.config.id] || 0) + 1
+    for (const [id, cnt] of Object.entries(counts)) {
+      if (cnt % 3 !== 0) {
+        console.warn(`[Board] 3n VIOLATION: cardId=${id} count=${cnt} (not divisible by 3)`)
+      }
+    }
+    console.log(`[Board] cardList: ${list.length} total, ${Object.keys(counts).length} types, counts:`, JSON.stringify(counts))
     return list
   }
 
@@ -235,8 +244,8 @@ export class Board {
 
         for (const cl of clusters) {
           let clPlaced = 0
-          for (let r = cl.rMin; r <= cl.rMax && clPlaced < cardsPerCluster; r++) {
-            for (let c = cl.cMin; c <= cl.cMax && clPlaced < cardsPerCluster; c++) {
+          for (let r = cl.rMin; r <= cl.rMax && clPlaced < cardsPerCluster && placed < needed; r++) {
+            for (let c = cl.cMin; c <= cl.cMax && clPlaced < cardsPerCluster && placed < needed; c++) {
               if (r >= rows || c >= cols) continue
               if (this.grid[l][r][c] !== null) continue
               const cardData = normalCards.shift()

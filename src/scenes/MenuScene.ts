@@ -32,11 +32,18 @@ export class MenuScene extends Scene {
   private _touchScrollMove: any = null
   private _authBtn: any = null
   private _privacyResolve: ((res: { event: string }) => void) | null = null
+  private _screenW = 375
+  private _boardNameTxt: PIXI.Text | null = null
+  private _boardNameShadowTxt: PIXI.Text | null = null
+  private _boardRankTxt: PIXI.Text | null = null
+  private _boardRankHighlightTxt: PIXI.Text | null = null
+  private _boardCtn: PIXI.Container | null = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
     const w = sysInfo.windowWidth
     const h = sysInfo.windowHeight
+    this._screenW = w
 
     // Full-screen home background image
     const homeImg = wx.createImage()
@@ -48,7 +55,47 @@ export class MenuScene extends Scene {
       bgSp.width = w; bgSp.height = h
       this.container.addChildAt(bgSp, 0)
     }
-    homeImg.src = 'assets/home.jpg'
+    homeImg.src = 'assets/home.png'
+
+    // Pond name overlaid on background's wooden bulletin board (left-center)
+    const boardCtn = new PIXI.Container()
+    boardCtn.x = 18; boardCtn.y = Math.floor(h * 0.49)
+    this._boardCtn = boardCtn
+    this.container.addChild(boardCtn)
+
+    // Rank text — above the pond name
+    const rankHighlight = new PIXI.Text('', {
+      fontFamily: 'sans-serif', fontSize: 12, fontWeight: 'bold',
+      fill: '#8E7355', align: 'center',
+    } as any)
+    rankHighlight.x = -1; rankHighlight.y = -1
+    boardCtn.addChild(rankHighlight)
+
+    const boardRank = new PIXI.Text('', {
+      fontFamily: 'sans-serif', fontSize: 12, fontWeight: 'bold',
+      fill: '#3D2615', align: 'center',
+    } as any)
+    boardRank.x = 0; boardRank.y = 0
+    boardCtn.addChild(boardRank)
+    this._boardRankTxt = boardRank
+    this._boardRankHighlightTxt = rankHighlight
+
+    // Pond name — carved dark lettering on wood
+    const boardHighlight = new PIXI.Text('···', {
+      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
+      fill: '#8E7355', align: 'center',
+    } as any)
+    boardHighlight.x = -1; boardHighlight.y = 14
+    boardCtn.addChild(boardHighlight)
+
+    const boardName = new PIXI.Text('···', {
+      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
+      fill: '#3D2615', align: 'center',
+    } as any)
+    boardName.x = 0; boardName.y = 15
+    boardCtn.addChild(boardName)
+    this._boardNameTxt = boardName
+    this._boardNameShadowTxt = boardHighlight
 
     const barY = 4
     // Single pond — will be created after cloud data loads
@@ -62,28 +109,27 @@ export class MenuScene extends Scene {
       if (e.ok) {
         wx.showToast({ title: `🐟 加入${e.pondName}！摸到${e.fishName}`, icon: 'none', duration: 2500 })
         // Reload pond to show new fish
-        const sysInfo = wx.getSystemInfoSync()
-        this._loadRealCounts(sysInfo.windowWidth, 4)
+        this._loadRealCounts(this._screenW, 4)
       } else {
         wx.showToast({ title: `加入鱼塘失败: ${e.reason}`, icon: 'none', duration: 2000 })
       }
     })
 
-    // Button: 加入鱼塘
-    const btnW = 180; const btnH = 42; const btnX = (w - btnW) / 2; const btnY1 = Math.floor(h * 0.38)
-    const btn = new Button(btnX, btnY1, btnW, btnH, '加入鱼塘', {
-      bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 8, shadow: true,
-    })
-    this.container.addChild(btn.container)
-    this._startHitArea = btn.hitArea
-
-    // Button: 排行榜
-    const rankBtn = new Button(btnX, btnY1 + btnH + 8, btnW, btnH, '🏆 鱼塘排行榜', {
-      bgColor: '#5C4033', textColor: '#FFFFFF', fontSize: 18, radius: 8, shadow: true,
+    // Button: 鱼塘排行榜 (top)
+    const btnW = 180; const btnH = 44; const btnX = (w - btnW) / 2; const btnY1 = Math.floor(h * 0.38)
+    const rankBtn = new Button(btnX, btnY1, btnW, btnH, '🏆 鱼塘排行榜', {
+      bgColor: '#5C4033', textColor: '#FFFFFF', fontSize: 18, radius: 14, shadow: true,
     })
     this.container.addChild(rankBtn.container)
     this._rankListHitArea = rankBtn.hitArea
     this._rankListCallback = () => this._showRankingOverlay(w, h)
+
+    // Button: 加入鱼塘 (bottom)
+    const btn = new Button(btnX, btnY1 + btnH + 10, btnW, btnH, '加入鱼塘', {
+      bgColor: '#E67E22', textColor: '#FFFFFF', fontSize: 20, radius: 14, shadow: true,
+    })
+    this.container.addChild(btn.container)
+    this._startHitArea = btn.hitArea
     this._startCallback = () => {
       const { GameScene } = require('./GameScene')
       this.manager.replace(new GameScene(), { levelId: 'level1' })
@@ -228,6 +274,14 @@ export class MenuScene extends Scene {
     this._pondHitAreas = []
 
     const pondCfg = getPondById(targetPondId) || PONDS[0]
+    // Compute rank from cloud data
+    let pondRank = 0
+    if (data?.fatPondRank) {
+      const info = data.fatPondRank.find((d: any) => d.pondId === targetPondId)
+      pondRank = info?.rank || (info ? data.fatPondRank.indexOf(info) + 1 : 0)
+    }
+    this._updateBoardInfo(targetPondId, pondRank)
+
     const screenH = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
     const pondW = w  // full width
     const pondH = Math.floor(screenH / 3)  // exactly bottom 1/3
@@ -372,6 +426,13 @@ export class MenuScene extends Scene {
 
   private _switchPond(pondId: string, w: number): void {
     this._currentPondId = pondId
+    // Look up rank from cached cloud data
+    let rank = 0
+    if (this._rankingCloudData?.fatPondRank) {
+      const info = this._rankingCloudData.fatPondRank.find((d: any) => d.pondId === pondId)
+      rank = info?.rank || (info ? this._rankingCloudData.fatPondRank.indexOf(info) + 1 : 0)
+    }
+    this._updateBoardInfo(pondId, rank)
     // Persist selection to local cache so contributes go to this pond
     const cfg = getPondById(pondId)
     const fishId = cfg?.fishId || 'xiaojinyu'
@@ -392,6 +453,22 @@ export class MenuScene extends Scene {
   }
 
   private _currentPondId: string | null = null
+  private _currentRank = 0
+
+  /** Update pond name + rank on the wooden bulletin board */
+  private _updateBoardInfo(pondId: string, rank: number): void {
+    if (!this._boardNameTxt) return
+    const cfg = getPondById(pondId)
+    const text = cfg ? cfg.name : '···'
+    this._boardNameTxt.text = text
+    if (this._boardNameShadowTxt) this._boardNameShadowTxt.text = text
+
+    // Rank display: medals for top 3, number for others
+    const medals = ['🥇', '🥈', '🥉']
+    const rankText = rank > 0 && rank <= 3 ? `${medals[rank - 1]} 第${rank}名` : rank > 0 ? `No.${rank}` : ''
+    if (this._boardRankTxt) this._boardRankTxt.text = rankText
+    if (this._boardRankHighlightTxt) this._boardRankHighlightTxt.text = rankText
+  }
 
   onDestroy(): void {
     if (this._authBtn) { this._authBtn.destroy(); this._authBtn = null }
@@ -416,8 +493,7 @@ export class MenuScene extends Scene {
       if (!pv.container || !pv.container.parent) continue
       const sp = screenPos(pv.container)
       const dpr = getDPR()
-      const sysInfo = typeof wx !== 'undefined' ? wx.getSystemInfoSync() : { windowWidth: 375 }
-      const pw = sysInfo.windowWidth - 60
+      const pw = this._screenW - 60
       // Hit areas in logical pixels (matching touch coordinates)
       this.registerHitArea({ x: sp.x / dpr + 8, y: sp.y / dpr + 22, w: pw - 16, h: 210 - 26 }, () => {
         pv.dashNear(this._lastTouchX - sp.x / dpr, this._lastTouchY - sp.y / dpr, 60)

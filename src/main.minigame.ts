@@ -23,6 +23,11 @@ const canvas = getMainCanvas()
 canvas.width = sysInfo.windowWidth * dpr
 canvas.height = sysInfo.windowHeight * dpr
 
+// Fix PIXI.Text blurriness: render text at device pixel ratio
+// Must be set BEFORE any PIXI.Text objects are created
+;(PIXI.Text as any).defaultResolution = dpr
+;(PIXI.Text as any).defaultAutoResolution = false
+
 const app = new PIXI.Application({
   view: canvas,
   width: canvas.width,

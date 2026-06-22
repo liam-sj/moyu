@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js-legacy'
+import { getDPR } from '../platform/PixiAdapter'
 
 /** Single swimming fish with state-machine animation */
 /** Load fish sprite sheet once */
@@ -167,9 +168,11 @@ export class FishView {
       if (!self.sprite || !self.container || self._destroyed) return
       const fishSize = self.sprite.height || 30
       const avatarSize = Math.floor(fishSize * 0.5)
+      const dpr = getDPR()
       const canvas = wx.createCanvas()
-      canvas.width = avatarSize; canvas.height = avatarSize
+      canvas.width = avatarSize * dpr; canvas.height = avatarSize * dpr
       const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+      ctx.scale(dpr, dpr)
       ctx.beginPath(); ctx.arc(avatarSize/2, avatarSize/2, avatarSize/2, 0, Math.PI * 2); ctx.clip()
       ctx.drawImage(img, 0, 0, avatarSize, avatarSize)
       const tex = PIXI.Texture.from(canvas)

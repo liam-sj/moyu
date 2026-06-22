@@ -16,10 +16,19 @@ export class SkillSystem {
   usedSkills = new Set<string>()
   isShowingSelection = false
   private bus: EventBus
+  private _unsubEliminated: (() => void) | null = null
 
   constructor(bus: EventBus) {
     this.bus = bus
-    this.bus.on<EliminatedEvent>('eliminated', () => this.onEliminate())
+    this._unsubEliminated = this.bus.on<EliminatedEvent>('eliminated', () => this.onEliminate())
+  }
+
+  /** Unregister event listeners so this instance stops responding to bus events */
+  destroy(): void {
+    if (this._unsubEliminated) {
+      this._unsubEliminated()
+      this._unsubEliminated = null
+    }
   }
 
   init(): void {

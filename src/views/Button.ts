@@ -83,25 +83,24 @@ export class Button {
     } else {
       // ── Solid (original style) ──
       if (this._shadow) {
-        g.beginFill(0x000000, 0.15)
-        g.drawRect(x + 2, y + 2, w, h)
+        g.beginFill(0x000000, 0.20)
+        g.drawRoundedRect(x + 3, y + 3, w, h, r)
         g.endFill()
       }
 
       g.beginFill(hexToInt(this._bgColor))
-      g.drawRect(x, y, w, h)
+      g.drawRoundedRect(x, y, w, h, r)
       g.endFill()
 
-      g.beginFill(0x000000, 0.18)
-      g.drawRect(x, y + h - 2, w, 2)
-      g.drawRect(x + w - 2, y, 2, h)
+      // Bottom shadow for depth
+      g.beginFill(0x000000, 0.12)
+      g.drawRoundedRect(x, y + h - 3, w, 3, r)
       g.endFill()
 
       const hl = this._highlight
       hl.clear()
-      hl.beginFill(0xFFFFFF, 0.2)
-      hl.drawRect(x + 1, y + 1, w - 2, 2)
-      hl.drawRect(x + 1, y + 1, 2, h - 2)
+      hl.beginFill(0xFFFFFF, 0.25)
+      hl.drawRoundedRect(x + 2, y + 2, w - 4, Math.floor(h * 0.45), r - 1)
       hl.endFill()
     }
   }

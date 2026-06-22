@@ -472,8 +472,15 @@ export class GameScene extends Scene {
     this.slotLayer.removeChildren()
     this.hudLayer.removeChildren()
 
-    // Clean up old logic
+    // Clean up old logic (must destroy skill system to unregister event listeners)
+    this.logic.skillSystem.destroy()
     this.logic.skillSystem.reset()
+
+    // Clear overlay state arrays to prevent stale hit areas from blocking interaction
+    this._resultArea = []
+    this._pondPickerAreas = []
+    this._celebrationAreas = []
+    this._joiningPond = false
 
     // Init new level
     const config = getLevelConfig(levelId)
