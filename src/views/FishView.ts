@@ -17,6 +17,33 @@ export function loadFishAtlas(url: string): void {
 
 const FISH_ORDER = ['xiaojinyu','xianyugan','jinli','hetun','moyu','haima','feiyu','zhangyu','bimuyu','pangxie','jianyu','haitun','__announcer__']
 
+/** Fish behavior traits based on real-world characteristics */
+interface FishTraits {
+  baseSpeed: number        // horizontal speed multiplier
+  vertSpeed: number        // vertical drift speed
+  dashChance: number       // probability of spontaneous dash
+  dashSpeedMul: number     // speed multiplier during dash
+  turnChance: number       // probability of turn vs pause
+  pauseChance: number      // probability of pause after cruise
+  pauseDuration: number    // base pause duration (frames)
+  wagStrength: number      // body sway intensity
+}
+const FISH_TRAITS: Record<string, FishTraits> = {
+  xiaojinyu:  { baseSpeed: 0.12, vertSpeed: 0.04, dashChance: 0.04, dashSpeedMul: 5,  turnChance: 0.30, pauseChance: 0.20, pauseDuration: 80,  wagStrength: 0.03 },
+  xianyugan:  { baseSpeed: 0.08, vertSpeed: 0.02, dashChance: 0.02, dashSpeedMul: 3,  turnChance: 0.20, pauseChance: 0.35, pauseDuration: 120, wagStrength: 0.02 },
+  jinli:      { baseSpeed: 0.16, vertSpeed: 0.06, dashChance: 0.07, dashSpeedMul: 6,  turnChance: 0.30, pauseChance: 0.15, pauseDuration: 60,  wagStrength: 0.04 },
+  hetun:      { baseSpeed: 0.10, vertSpeed: 0.03, dashChance: 0.06, dashSpeedMul: 8,  turnChance: 0.25, pauseChance: 0.25, pauseDuration: 70,  wagStrength: 0.04 },
+  moyu:       { baseSpeed: 0.18, vertSpeed: 0.05, dashChance: 0.08, dashSpeedMul: 7,  turnChance: 0.35, pauseChance: 0.15, pauseDuration: 50,  wagStrength: 0.05 },
+  haima:      { baseSpeed: 0.06, vertSpeed: 0.08, dashChance: 0.02, dashSpeedMul: 3,  turnChance: 0.20, pauseChance: 0.30, pauseDuration: 100, wagStrength: 0.02 },
+  feiyu:      { baseSpeed: 0.20, vertSpeed: 0.04, dashChance: 0.10, dashSpeedMul: 9,  turnChance: 0.40, pauseChance: 0.10, pauseDuration: 40,  wagStrength: 0.05 },
+  zhangyu:    { baseSpeed: 0.10, vertSpeed: 0.03, dashChance: 0.05, dashSpeedMul: 6,  turnChance: 0.30, pauseChance: 0.20, pauseDuration: 70,  wagStrength: 0.06 },
+  bimuyu:     { baseSpeed: 0.07, vertSpeed: 0.01, dashChance: 0.03, dashSpeedMul: 4,  turnChance: 0.15, pauseChance: 0.35, pauseDuration: 100, wagStrength: 0.02 },
+  pangxie:    { baseSpeed: 0.08, vertSpeed: 0,     dashChance: 0.06, dashSpeedMul: 5,  turnChance: 0.25, pauseChance: 0.25, pauseDuration: 90,  wagStrength: 0.02 },
+  jianyu:     { baseSpeed: 0.22, vertSpeed: 0.03, dashChance: 0.12, dashSpeedMul: 10, turnChance: 0.35, pauseChance: 0.10, pauseDuration: 40,  wagStrength: 0.04 },
+  haitun:     { baseSpeed: 0.17, vertSpeed: 0.07, dashChance: 0.10, dashSpeedMul: 7,  turnChance: 0.40, pauseChance: 0.12, pauseDuration: 50,  wagStrength: 0.05 },
+  __announcer__:{ baseSpeed: 0.12,vertSpeed: 0.04, dashChance: 0.01, dashSpeedMul: 4,  turnChance: 0.25, pauseChance: 0.20, pauseDuration: 100, wagStrength: 0.03 },
+}
+
 export function getFishTex(fishId: string, idx: number = 0): PIXI.Texture | null {
   if (!_fishTexture) return null
   const fishIdx = FISH_ORDER.indexOf(fishId)
@@ -36,21 +63,19 @@ export class FishView {
   private phase: number
   state: string
   stateTimer: number
-  dashChance = 0.05
+  private _traits: FishTraits
   private _avatarSprite: PIXI.Sprite | null = null
-  private _baseSize: number
   /** Crab lives at the bottom — restricted vertical movement */
   readonly bottomDweller: boolean
 
   constructor(fishId: string, idx: number, x: number, y: number, size: number) {
+    this._traits = FISH_TRAITS[fishId] || FISH_TRAITS.xiaojinyu
     this.bottomDweller = fishId === 'pangxie'
     this.container = new PIXI.Container()
     const tex = getFishTex(fishId, idx)
-    this._baseSize = size
     if (tex) {
       this.sprite = new PIXI.Sprite(tex)
       this.sprite.anchor.set(0.5)
-      // Maintain aspect ratio: height = size, width proportional
       this.sprite.height = size
       this.sprite.width = tex.width * (size / tex.height)
     } else {
@@ -63,14 +88,9 @@ export class FishView {
     this.container.x = x; this.container.y = y
     this.sprite.alpha = 0.85
 
-    if (this.bottomDweller) {
-      // Crab: slow horizontal scuttle, no vertical drifting
-      this.vx = 0.08 * (Math.random() > 0.5 ? 1 : -1)
-      this.vy = 0
-    } else {
-      this.vx = 0.15 * (Math.random() > 0.5 ? 1 : -1)
-      this.vy = 0.06 * (Math.random() > 0.5 ? 1 : -1)
-    }
+    const t = this._traits
+    this.vx = t.baseSpeed * (Math.random() > 0.5 ? 1 : -1)
+    this.vy = t.vertSpeed * (Math.random() > 0.5 ? 1 : -1)
     this.phase = Math.random() * Math.PI * 2
     this.state = 'cruise'
     this.stateTimer = 60 + Math.random() * 120
@@ -78,38 +98,40 @@ export class FishView {
 
   update(dt: number, bounds: { x: number; y: number; w: number; h: number }, repeller?: { x: number; y: number }): void {
     const now = Date.now()
+    const t = this._traits
 
     // ── State machine ──
     this.stateTimer -= dt
     if (this.stateTimer <= 0) {
       const r = Math.random()
       if (this.state === 'cruise') {
-        if (r < 0.3) this.state = 'turn'
-        else if (r < 0.5) this.state = 'pause'
-        else if (r < 0.50 + this.dashChance) this.state = 'dash'
+        if (r < t.turnChance) this.state = 'turn'
+        else if (r < t.turnChance + t.pauseChance) this.state = 'pause'
+        else if (r < t.turnChance + t.pauseChance + t.dashChance) this.state = 'dash'
         else this.state = 'cruise'
       } else if (this.state === 'turn') {
         this.state = 'cruise'; this.vx *= -1
       } else {
         this.state = 'cruise'
       }
-      this.stateTimer = this.state === 'pause' ? 60 + Math.random() * 80 :
-                       this.state === 'dash' ? 30 + Math.random() * 50 :
+      this.stateTimer = this.state === 'pause' ? t.pauseDuration + Math.random() * 60 :
+                       this.state === 'dash' ? 25 + Math.random() * 40 :
                        this.state === 'turn' ? 10 : 60 + Math.random() * 120
     }
 
     let speedMul = 1
     if (this.state === 'pause') speedMul = 0
-    else if (this.state === 'dash') speedMul = 6
+    else if (this.state === 'dash') speedMul = t.dashSpeedMul
     else if (this.state === 'turn') speedMul = 0.3
 
-    // Repulsion from announcer fish
+    // Repulsion from announcer fish (shark)
     if (repeller) {
       const dx = this.container.x - repeller.x
       const dy = this.container.y - repeller.y
       const dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist < 50 && dist > 0) {
-        const force = (50 - dist) / 50 * 0.8
+      const repelRadius = 100
+      if (dist < repelRadius && dist > 0) {
+        const force = (repelRadius - dist) / repelRadius * 0.8
         this.container.x += (dx / dist) * force * dt
         this.container.y += (dy / dist) * force * dt
       }
@@ -118,22 +140,26 @@ export class FishView {
     this.container.x += this.vx * dt * speedMul
     this.container.y += this.vy * dt * speedMul
 
+    // Gentle bobbing when paused — avoids frozen/stuck appearance
+    if (this.state === 'pause') {
+      const bob = Math.sin(now * 0.004 + this.phase) * 0.15 * dt
+      this.container.y += bob
+    }
+
     // ── Boundary handling ──
     const margin = 28
-    const bottomMargin = this.bottomDweller ? 8 : 150  // crab hugs bottom, fish keep 150px away
+    const bottomMargin = this.bottomDweller ? 8 : 150
 
     if (this.bottomDweller) {
-      // Crab: confined to bottom strip (bottom 30% of pond)
-      const crabTop = bounds.y + bounds.h * 0.7
+      // Crab: allowed in bottom 55% of pond
+      const crabTop = bounds.y + bounds.h * 0.45
       const crabBottom = bounds.y + bounds.h - bottomMargin
       if (this.container.y < crabTop) { this.vy = Math.abs(this.vy); this.container.y = crabTop + 1 }
       if (this.container.y > crabBottom) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = crabBottom - 1 }
-      // Crab still bounces at horizontal edges
       if (this.container.x < bounds.x + margin) { this.vx = Math.abs(this.vx); this.container.x = bounds.x + margin + 1 }
       if (this.container.x > bounds.x + bounds.w - margin - 6) { this.vx = -Math.abs(this.vx); this.container.x = bounds.x + bounds.w - margin - 7 }
     } else {
-      // ── Wrap-around on horizontal edges ──
-      const wrapBuffer = 40  // how far off-screen before wrapping
+      const wrapBuffer = 40
       if (this.container.x < bounds.x - wrapBuffer && this.vx < 0) {
         this.container.x = bounds.x + bounds.w + wrapBuffer
       }
@@ -141,7 +167,6 @@ export class FishView {
         this.container.x = bounds.x - wrapBuffer
       }
 
-      // Vertical bounce stays as-is
       const bouncedY = this.container.y < bounds.y + margin || this.container.y > bounds.y + bounds.h - bottomMargin
       if (bouncedY) {
         this.state = 'dash'
@@ -154,7 +179,7 @@ export class FishView {
     // Body animation
     const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1
     const dir = this.vx > 0 ? -1 : 1
-    const wag = Math.sin(now * 0.003 + this.phase) * 0.03 * animMul
+    const wag = Math.sin(now * 0.003 + this.phase) * t.wagStrength * animMul
     this.container.scale.x = dir
     this.sprite.rotation = wag
   }

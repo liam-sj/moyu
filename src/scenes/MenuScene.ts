@@ -17,6 +17,8 @@ export class MenuScene extends Scene {
   private _rankListCallback: (() => void) | null = null
   private _rankOverlay: PIXI.Container | null = null
   private _rankOverlayAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _detailOverlay: PIXI.Container | null = null
+  private _detailOverlayAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondViews: PondView[] = []
   private _myCloudData: any = null
@@ -38,6 +40,7 @@ export class MenuScene extends Scene {
   private _boardRankTxt: PIXI.Text | null = null
   private _boardRankHighlightTxt: PIXI.Text | null = null
   private _boardCtn: PIXI.Container | null = null
+  private _boardHitArea: { x: number; y: number; w: number; h: number } | null = null
 
   onEnter(_params?: unknown): void {
     const sysInfo = wx.getSystemInfoSync()
@@ -59,7 +62,7 @@ export class MenuScene extends Scene {
 
     // Pond name overlaid on background's wooden bulletin board (left-center)
     const boardCtn = new PIXI.Container()
-    boardCtn.x = 18; boardCtn.y = Math.floor(h * 0.49)
+    boardCtn.x = 40; boardCtn.y = Math.floor(h * 0.49)
     this._boardCtn = boardCtn
     this.container.addChild(boardCtn)
 
@@ -96,6 +99,9 @@ export class MenuScene extends Scene {
     boardCtn.addChild(boardName)
     this._boardNameTxt = boardName
     this._boardNameShadowTxt = boardHighlight
+
+    // Hit area for bulletin board — tap to open pond detail popup
+    this._boardHitArea = { x: 26, y: Math.floor(h * 0.49) - 4, w: 130, h: 42 }
 
     const barY = 4
     // Single pond — will be created after cloud data loads
@@ -274,6 +280,7 @@ export class MenuScene extends Scene {
     this._pondHitAreas = []
 
     const pondCfg = getPondById(targetPondId) || PONDS[0]
+    this._currentPondId = targetPondId
     // Compute rank from cloud data
     let pondRank = 0
     if (data?.fatPondRank) {
@@ -293,7 +300,7 @@ export class MenuScene extends Scene {
     this._pondViews = [pv]
     this._pondHitAreas.push({
       rect: { x: px, y: py, w: pondW, h: 22 },
-      cb: () => { const { PondDetailScene } = require('./PondDetailScene'); this.manager.push(new PondDetailScene(targetPondId)) }
+      cb: () => { this._showPondDetailOverlay(targetPondId) }
     })
 
     // Spawn fish if data available
@@ -424,6 +431,123 @@ export class MenuScene extends Scene {
     this.container.addChild(ctn)
   }
 
+  /** Show pond detail as an internal overlay (keeps fish swimming) */
+  private _showPondDetailOverlay(pondId: string): void {
+    if (this._detailOverlay) { this.container.removeChild(this._detailOverlay); this._detailOverlay.destroy({ children: true }) }
+    const pond = getPondById(pondId)
+    if (!pond) return
+
+    const w = this._screenW
+    const h = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
+    const ctn = new PIXI.Container()
+    this._detailOverlay = ctn
+    this._detailOverlayAreas = []
+
+    // Single frosted glass card background
+    const cardX = 16; const cardY = Math.floor(h * 0.08); const cardW = w - 32; const cardH = Math.floor(h * 0.62)
+    const card = new PIXI.Graphics()
+    card.beginFill(0x1A2A3A, 0.82)
+    card.drawRoundedRect(cardX, cardY, cardW, cardH, 16)
+    card.endFill()
+    card.lineStyle(1.5, 0xFFFFFF, 0.18)
+    card.drawRoundedRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1, 16)
+    ctn.addChild(card)
+
+    const cx = w / 2
+    let cy = cardY + 32
+
+    const emoji = new PIXI.Text(pond.emoji, { fontFamily: 'sans-serif', fontSize: 36, align: 'center' } as any)
+    emoji.anchor.set(0.5); emoji.x = cx; emoji.y = cy
+    ctn.addChild(emoji)
+
+    cy += 40
+    const name = new PIXI.Text(pond.name, { fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    name.anchor.set(0.5); name.x = cx; name.y = cy
+    ctn.addChild(name)
+
+    cy += 24
+    const slogan = new PIXI.Text(`"${pond.slogan}"`, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
+    slogan.anchor.set(0.5); slogan.x = cx; slogan.y = cy
+    ctn.addChild(slogan)
+
+    // Close button — bottom-right of card
+    const closeW = 64; const closeH = 28
+    const closeX = cardX + cardW - closeW - 8
+    const closeY = cardY + cardH - closeH - 8
+    const closeBg = new PIXI.Graphics()
+    closeBg.beginFill(0xFFFFFF, 0.12)
+    closeBg.drawRoundedRect(closeX, closeY, closeW, closeH, 8)
+    closeBg.endFill()
+    closeBg.lineStyle(1, 0xFFFFFF, 0.22)
+    closeBg.drawRoundedRect(closeX + 0.5, closeY + 0.5, closeW - 1, closeH - 1, 8)
+    ctn.addChild(closeBg)
+    const closeTxt = new PIXI.Text('✕', { fontFamily: 'sans-serif', fontSize: 14, fill: '#FFFFFF' } as any)
+    closeTxt.anchor.set(0.5); closeTxt.x = closeX + closeW / 2; closeTxt.y = closeY + closeH / 2
+    ctn.addChild(closeTxt)
+
+    const self = this
+    this._detailOverlayAreas.push({
+      rect: { x: closeX, y: closeY, w: closeW, h: closeH },
+      cb: () => {
+        self._detailOverlay?.destroy({ children: true })
+        self._detailOverlay = null; self._detailOverlayAreas = []
+      }
+    })
+
+    this.container.addChild(ctn)
+
+    // Fetch detail data (rank, fish count, heroes) into the same card
+    this._loadPondDetailData(w, cy + 10, pondId)
+  }
+
+  /** Async load pond detail stats into the overlay */
+  private async _loadPondDetailData(w: number, y: number, pondId: string): Promise<void> {
+    try {
+      const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId } })
+      const d = (res as any).result
+      if (!d?.ok || !this._detailOverlay) return
+
+      const cx = w / 2
+      const lines = [
+        `🏆 今日排行：第 ${d.rank} 名`,
+        `🐟 今日鱼数：${d.dailyClears || 0}`,
+        `👥 活跃人数：${d.activeMembers || 0}`,
+        `📊 人均：${d.perCapita || 0} 条/人`
+      ]
+      const divider = new PIXI.Graphics()
+      divider.lineStyle(1, 0xFFFFFF, 0.12)
+      divider.moveTo(cx - 100, y); divider.lineTo(cx + 100, y)
+      this._detailOverlay.addChild(divider)
+
+      for (let i = 0; i < lines.length; i++) {
+        const t = new PIXI.Text(lines[i], { fontFamily: 'sans-serif', fontSize: 13, fill: '#A8B8C8' } as any)
+        t.anchor.set(0.5); t.x = cx; t.y = y + 12 + i * 26
+        this._detailOverlay.addChild(t)
+      }
+      let nextY = y + 12 + lines.length * 26 + 12
+
+      if (d.heroes?.length) {
+        const div2 = new PIXI.Graphics()
+        div2.lineStyle(1, 0xFFFFFF, 0.10)
+        div2.moveTo(cx - 80, nextY); div2.lineTo(cx + 80, nextY)
+        this._detailOverlay.addChild(div2)
+        nextY += 14
+
+        const heroTitle = new PIXI.Text('🏅 鱼塘英雄榜', { fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#E8B45A' } as any)
+        heroTitle.anchor.set(0.5); heroTitle.x = cx; heroTitle.y = nextY
+        this._detailOverlay.addChild(heroTitle)
+        nextY += 24
+
+        for (let i = 0; i < Math.min(d.heroes.length, 10); i++) {
+          const h = d.heroes[i]
+          const ht = new PIXI.Text(`${i + 1}. 🐟 通关 ${h.todayClears || 0} 次`, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
+          ht.anchor.set(0.5); ht.x = cx; ht.y = nextY + i * 20
+          this._detailOverlay.addChild(ht)
+        }
+      }
+    } catch {}
+  }
+
   private _switchPond(pondId: string, w: number): void {
     this._currentPondId = pondId
     // Look up rank from cached cloud data
@@ -487,6 +611,11 @@ export class MenuScene extends Scene {
     if (this._shareHitArea && this._shareCallback) this.registerHitArea(this._shareHitArea, this._shareCallback, 12)
     if (this._rankListHitArea && this._rankListCallback) this.registerHitArea(this._rankListHitArea, this._rankListCallback, 12)
     for (const item of this._rankOverlayAreas) this.registerHitArea(item.rect, item.cb, 25)
+    if (this._boardHitArea && this._currentPondId) {
+      const pondId = this._currentPondId
+      this.registerHitArea(this._boardHitArea, () => { this._showPondDetailOverlay(pondId) }, 15)
+    }
+    for (const item of this._detailOverlayAreas) this.registerHitArea(item.rect, item.cb, 30)
     for (const item of this._pondHitAreas) this.registerHitArea(item.rect, item.cb, 10)
     for (const pv of this._pondViews) {
       pv.updateFish(dt)

@@ -97,9 +97,8 @@ export class PondView {
     const f = new FishView('__announcer__', 0,
       this._bounds.x + this._bounds.w / 2,
       this._bounds.y + this._bounds.h / 2,
-      48  // bigger shark
+      56  // bigger shark
     )
-    f.dashChance = 0.01  // shark rarely dashes
     this._announceFish = f
     this.container.addChild(f.container)
 
@@ -166,14 +165,14 @@ export class PondView {
     for (let i = 0; i < max; i++) {
       const useFishId = i < fishIdList.length ? fishIdList[i] : this._pondConfig.fishId
       const isCrab = useFishId === 'pangxie'
-      // Crab stays at bottom strip, other fish distributed across pond
+      // Crab roams bottom half of pond, other fish distributed across pond
       const fy = isCrab
-        ? this._bounds.y + this._bounds.h * 0.78 + ((i * 23 + 11) % Math.max(1, this._bounds.h * 0.18))
+        ? this._bounds.y + this._bounds.h * 0.48 + ((i * 23 + 11) % Math.max(1, this._bounds.h * 0.48))
         : this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28))
       const f = new FishView(useFishId, i,
         this._bounds.x + 10 + ((i * 47 + 13) % Math.max(1, this._bounds.w - 24)),
         fy,
-        isCrab ? 24 : 28 + ((i * 19 + 5) % 10)
+        isCrab ? 28 : 34 + ((i * 19 + 5) % 12)
       )
       if (i < avatarList.length) f.setAvatar(avatarList[i])
       this._fish.push(f)
