@@ -151,8 +151,8 @@ export class FishView {
     const bottomMargin = this.bottomDweller ? 8 : 150
 
     if (this.bottomDweller) {
-      // Crab: allowed in bottom 55% of pond
-      const crabTop = bounds.y + bounds.h * 0.45
+      // Crab: stays near the bottom of pond
+      const crabTop = bounds.y + bounds.h * 0.75
       const crabBottom = bounds.y + bounds.h - bottomMargin
       if (this.container.y < crabTop) { this.vy = Math.abs(this.vy); this.container.y = crabTop + 1 }
       if (this.container.y > crabBottom) { this.vy = -Math.abs(this.vy) * 0.3; this.container.y = crabBottom - 1 }

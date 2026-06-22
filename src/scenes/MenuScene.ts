@@ -58,7 +58,7 @@ export class MenuScene extends Scene {
       bgSp.width = w; bgSp.height = h
       this.container.addChildAt(bgSp, 0)
     }
-    homeImg.src = 'assets/home.png'
+    homeImg.src = 'assets/home.jpg'
 
     // Pond name overlaid on background's wooden bulletin board (left-center)
     const boardCtn = new PIXI.Container()
@@ -66,42 +66,42 @@ export class MenuScene extends Scene {
     this._boardCtn = boardCtn
     this.container.addChild(boardCtn)
 
-    // Rank text — above the pond name
-    const rankHighlight = new PIXI.Text('', {
-      fontFamily: 'sans-serif', fontSize: 12, fontWeight: 'bold',
-      fill: '#8E7355', align: 'center',
-    } as any)
-    rankHighlight.x = -1; rankHighlight.y = -1
-    boardCtn.addChild(rankHighlight)
-
-    const boardRank = new PIXI.Text('', {
-      fontFamily: 'sans-serif', fontSize: 12, fontWeight: 'bold',
-      fill: '#3D2615', align: 'center',
-    } as any)
-    boardRank.x = 0; boardRank.y = 0
-    boardCtn.addChild(boardRank)
-    this._boardRankTxt = boardRank
-    this._boardRankHighlightTxt = rankHighlight
-
-    // Pond name — carved dark lettering on wood
+    // Pond name — carved dark lettering on wood (top)
     const boardHighlight = new PIXI.Text('···', {
       fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
       fill: '#8E7355', align: 'center',
     } as any)
-    boardHighlight.x = -1; boardHighlight.y = 14
+    boardHighlight.x = -1; boardHighlight.y = -1
     boardCtn.addChild(boardHighlight)
 
     const boardName = new PIXI.Text('···', {
       fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
       fill: '#3D2615', align: 'center',
     } as any)
-    boardName.x = 0; boardName.y = 15
+    boardName.x = 0; boardName.y = 0
     boardCtn.addChild(boardName)
     this._boardNameTxt = boardName
     this._boardNameShadowTxt = boardHighlight
 
+    // Rank + fish count on same line — below pond name
+    const rankHighlight = new PIXI.Text('', {
+      fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold',
+      fill: '#8E7355', align: 'center',
+    } as any)
+    rankHighlight.x = -1; rankHighlight.y = 17
+    boardCtn.addChild(rankHighlight)
+
+    const boardRank = new PIXI.Text('', {
+      fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold',
+      fill: '#3D2615', align: 'center',
+    } as any)
+    boardRank.x = 0; boardRank.y = 18
+    boardCtn.addChild(boardRank)
+    this._boardRankTxt = boardRank
+    this._boardRankHighlightTxt = rankHighlight
+
     // Hit area for bulletin board — tap to open pond detail popup
-    this._boardHitArea = { x: 26, y: Math.floor(h * 0.49) - 4, w: 130, h: 42 }
+    this._boardHitArea = { x: 26, y: Math.floor(h * 0.49) - 4, w: 130, h: 50 }
 
     const barY = 4
     // Single pond — will be created after cloud data loads
@@ -281,13 +281,14 @@ export class MenuScene extends Scene {
 
     const pondCfg = getPondById(targetPondId) || PONDS[0]
     this._currentPondId = targetPondId
-    // Compute rank from cloud data
-    let pondRank = 0
+    // Compute rank + fish count from cloud data
+    let pondRank = 0; let fishCount = 0
     if (data?.fatPondRank) {
       const info = data.fatPondRank.find((d: any) => d.pondId === targetPondId)
       pondRank = info?.rank || (info ? data.fatPondRank.indexOf(info) + 1 : 0)
+      fishCount = info?.dailyClears || 0
     }
-    this._updateBoardInfo(targetPondId, pondRank)
+    this._updateBoardInfo(targetPondId, pondRank, fishCount)
 
     const screenH = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
     const pondW = w  // full width
@@ -309,7 +310,6 @@ export class MenuScene extends Scene {
       const entries = (data.fishEntries && data.fishEntries[targetPondId]) || []
       logger.info('MenuScene', `spawnFish targetPondId=${targetPondId} fishCount=${entries.length}`)
       pv.spawnFromEntries(entries)
-      pv.setBadge(info ? `${info.dailyClears}条` : '0条')
       if (info) { const rank = info.rank || (data.fatPondRank.indexOf(info) + 1); pv.updateRank?.(rank) }
     }
   }
@@ -550,13 +550,14 @@ export class MenuScene extends Scene {
 
   private _switchPond(pondId: string, w: number): void {
     this._currentPondId = pondId
-    // Look up rank from cached cloud data
-    let rank = 0
+    // Look up rank + fish count from cached cloud data
+    let rank = 0; let fishCount = 0
     if (this._rankingCloudData?.fatPondRank) {
       const info = this._rankingCloudData.fatPondRank.find((d: any) => d.pondId === pondId)
       rank = info?.rank || (info ? this._rankingCloudData.fatPondRank.indexOf(info) + 1 : 0)
+      fishCount = info?.dailyClears || 0
     }
-    this._updateBoardInfo(pondId, rank)
+    this._updateBoardInfo(pondId, rank, fishCount)
     // Persist selection to local cache so contributes go to this pond
     const cfg = getPondById(pondId)
     const fishId = cfg?.fishId || 'xiaojinyu'
@@ -579,19 +580,24 @@ export class MenuScene extends Scene {
   private _currentPondId: string | null = null
   private _currentRank = 0
 
-  /** Update pond name + rank on the wooden bulletin board */
-  private _updateBoardInfo(pondId: string, rank: number): void {
+  /** Update pond name + rank + fish count on the wooden bulletin board */
+  private _updateBoardInfo(pondId: string, rank: number, fishCount: number): void {
     if (!this._boardNameTxt) return
     const cfg = getPondById(pondId)
     const text = cfg ? cfg.name : '···'
     this._boardNameTxt.text = text
     if (this._boardNameShadowTxt) this._boardNameShadowTxt.text = text
 
-    // Rank display: medals for top 3, number for others
+    // Rank + fish count on one line
     const medals = ['🥇', '🥈', '🥉']
-    const rankText = rank > 0 && rank <= 3 ? `${medals[rank - 1]} 第${rank}名` : rank > 0 ? `No.${rank}` : ''
-    if (this._boardRankTxt) this._boardRankTxt.text = rankText
-    if (this._boardRankHighlightTxt) this._boardRankHighlightTxt.text = rankText
+    const parts: string[] = []
+    if (rank > 0) {
+      parts.push(rank <= 3 ? `${medals[rank - 1]} 第${rank}名` : `No.${rank}`)
+    }
+    if (fishCount > 0) parts.push(`🐟${fishCount}条`)
+    const line = parts.join(' · ')
+    if (this._boardRankTxt) this._boardRankTxt.text = line
+    if (this._boardRankHighlightTxt) this._boardRankHighlightTxt.text = line
   }
 
   onDestroy(): void {

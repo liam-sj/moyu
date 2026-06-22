@@ -68,4 +68,18 @@ try {
   }
 } catch (e) { console.warn('[cloud] init failed', e) }
 
+// ── BGM: summer pond ambience ──
+import { AudioManager } from './utils/AudioManager'
+AudioManager.init('assets/bgm.mp3')
+// WeChat requires user gesture to start audio — trigger on first touch, then self-remove
+if (typeof wx !== 'undefined') {
+  let _bgmStarted = false
+  const _startBgm = () => {
+    if (_bgmStarted) return
+    _bgmStarted = true
+    AudioManager.play()
+  }
+  wx.onTouchStart(_startBgm)
+}
+
 manager.push(new MenuScene())

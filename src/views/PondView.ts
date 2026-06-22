@@ -81,13 +81,6 @@ export class PondView {
     this.container.y = y
 
 
-    // Fish count badge
-    const badgeTxt = new PIXI.Text('···', {
-      fontFamily: 'sans-serif', fontSize: 9, fill: '#7FB3D8',
-    } as any)
-    badgeTxt.anchor.set(1, 0); badgeTxt.x = w - 6; badgeTxt.y = 5
-    this.container.addChild(badgeTxt)
-    ;(this as any)._badgeTxt = badgeTxt
   }
 
   /** Create the announcement fish with speech bubble */
@@ -165,9 +158,9 @@ export class PondView {
     for (let i = 0; i < max; i++) {
       const useFishId = i < fishIdList.length ? fishIdList[i] : this._pondConfig.fishId
       const isCrab = useFishId === 'pangxie'
-      // Crab roams bottom half of pond, other fish distributed across pond
+      // Crab stays near bottom, other fish distributed across pond
       const fy = isCrab
-        ? this._bounds.y + this._bounds.h * 0.48 + ((i * 23 + 11) % Math.max(1, this._bounds.h * 0.48))
+        ? this._bounds.y + this._bounds.h * 0.75 + ((i * 23 + 11) % Math.max(1, this._bounds.h * 0.22))
         : this._bounds.y + 14 + ((i * 31 + 7) % Math.max(1, this._bounds.h - 28))
       const f = new FishView(useFishId, i,
         this._bounds.x + 10 + ((i * 47 + 13) % Math.max(1, this._bounds.w - 24)),
@@ -249,12 +242,7 @@ export class PondView {
     }
   }
 
-  setBadge(text: string): void {
-    const b = (this as any)._badgeTxt as PIXI.Text
-    if (b) b.text = text
-  }
-
-  /** @deprecated Rank is now shown on MenuScene's bulletin board */
+  /** @deprecated Rank + fish count now shown on MenuScene's bulletin board */
   updateRank(_rank: number): void {}
 
   /** Show contributor avatars above fish area */
