@@ -56,7 +56,7 @@ export function createCardImage(
     sprite.height = tex.height * scale
     sprite.x = 0
     sprite.y = 0
-    if (covered) sprite.tint = 0x667788
+    if (covered) sprite.tint = 0x556677
     ctn.addChild(sprite)
   } else {
     const displayIcon = (isEvent && !isRevealed) ? '❓' : icon
@@ -232,7 +232,7 @@ export class CardView {
     if (covered) {
       // Covered: subtle dark overlay on fish image
       const overlay = new PIXI.Graphics()
-      overlay.beginFill(0x1A3028, 0.55)
+      overlay.beginFill(0x1A2A30, 0.78)
       overlay.drawRoundedRect(0, 0, w, h, 8)
       overlay.endFill()
       this.container.addChild(overlay)

@@ -18,14 +18,14 @@ exports.main = async (event, context) => {
     const date = todayStr()
     const openId = cloud.getWXContext().OPENID
 
-    // ── 1. Today's pond stats, ordered by dailyClears ──
-    const ponds = await safeGet(
-      db.collection('pond_daily_stats').where({ date }).orderBy('dailyClears', 'desc')
-    )
+    // ── Parallel: all 4 independent queries at once ──
+    const [ponds, allContribs, playerRes, streaks] = await Promise.all([
+      safeGet(db.collection('pond_daily_stats').where({ date }).orderBy('dailyClears', 'desc')),
+      safeGet(db.collection('contributions').where({ date })),
+      openId ? safeGet(db.collection('players').where({ openId })) : Promise.resolve({ data: [] }),
+      safeGet(db.collection('pond_streaks').orderBy('streakDays', 'desc'))
+    ])
     console.log('[getPondRanking] found', ponds.data.length, 'ponds for', date)
-
-    // ── 2. All today's contributions — group by pondId + openId in JS ──
-    const allContribs = await safeGet(db.collection('contributions').where({ date }))
 
     // Group: { pondId: { openId: { url, nickName, fishId, count } } }
     const byPond = {}
@@ -63,29 +63,24 @@ exports.main = async (event, context) => {
       })
     }
 
-    // ── 3. My pond info ──
+    // ── 3. My pond info (from already-fetched playerRes + memory filtering) ──
     let myPond = null
-    if (openId) {
-      const player = await safeGet(db.collection('players').where({ openId }))
-      if (player.data.length > 0) {
-        const p = player.data[0]
-        const rank = ponds.data.findIndex(r => r.pondId === p.pondId) + 1
-        // Count today's contributions for this player
-        const myContribs = await safeCount(
-          db.collection('contributions').where({ openId, date })
-        )
-        myPond = {
-          pondId: p.pondId,
-          fishId: p.fishId,
-          rank: rank > 0 ? rank : 0,
-          todayContribution: myContribs.total,
-          joinDate: p.joinDate,
-          switchCount: p.switchCount || 0,
-          avatarUrl: p.avatarUrl || '',
-          nickName: p.nickName || '',
-          fishSelectionShown: p.fishSelectionShown || false,
-          clearedLevel2: p.clearedLevel2 || false
-        }
+    if (playerRes.data.length > 0) {
+      const p = playerRes.data[0]
+      const rank = ponds.data.findIndex(r => r.pondId === p.pondId) + 1
+      // Count from already-fetched contributions (avoid extra DB query)
+      const myContribCount = allContribs.data.filter(c => c.openId === openId).length
+      myPond = {
+        pondId: p.pondId,
+        fishId: p.fishId,
+        rank: rank > 0 ? rank : 0,
+        todayContribution: myContribCount,
+        joinDate: p.joinDate,
+        switchCount: p.switchCount || 0,
+        avatarUrl: p.avatarUrl || '',
+        nickName: p.nickName || '',
+        fishSelectionShown: p.fishSelectionShown || false,
+        clearedLevel2: p.clearedLevel2 || false
       }
     }
 
@@ -122,10 +117,7 @@ exports.main = async (event, context) => {
       fishEmoji: FISH_EMOJIS[p.pondId] || '🐟'
     }))
 
-    // 4c. 连续霸榜
-    const streaks = await safeGet(
-      db.collection('pond_streaks').orderBy('streakDays', 'desc')
-    )
+    // 4c. 连续霸榜 (already fetched in parallel above)
     const streakRank = streaks.data.slice(0, 12).map((s, i) => ({
       pondId: s.pondId,
       rank: i + 1,

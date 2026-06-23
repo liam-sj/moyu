@@ -3,10 +3,12 @@ import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { getCachedPond, setCachedPond, getPondById, PONDS, PondConfig } from '../config/ponds'
 import { PondView } from '../views/PondView'
+import { PopupView } from '../views/PopupView'
 import logger from '../utils/Logger'
 import { getFishTex } from '../views/FishView'
 import { generatePoster } from '../utils/SharePoster'
 import { screenPos, px, getDPR } from '../platform/PixiAdapter'
+import { getCachedRanking, setCachedRanking, clearRankingCache, getCachedDetail, setCachedDetail } from '../config/rankingCache'
 
 export class MenuScene extends Scene {
   private _startHitArea: { x: number; y: number; w: number; h: number } | null = null
@@ -19,6 +21,7 @@ export class MenuScene extends Scene {
   private _rankOverlayAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _detailOverlay: PIXI.Container | null = null
   private _detailOverlayAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _detailPopup: PopupView | null = null
   private _pondHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _pondViews: PondView[] = []
   private _myCloudData: any = null
@@ -256,16 +259,25 @@ export class MenuScene extends Scene {
 
   private async _loadRealCounts(w: number, barY: number): Promise<void> {
     let data: any = null
-    try {
-      const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-      data = (res as any).result
-      this._rankingCloudData = data  // store for ranking overlay
-      logger.info('MenuScene', 'getPondRanking返回 ' + JSON.stringify({ ok: data?.ok, myPond: data?.myPond?.pondId, fatPondLen: data?.fatPondRank?.length, contribKeys: Object.keys(data?.contributors || {}) }))
-      if (data.myPond) {
-        this._myCloudData = data.myPond
-        if (data.myPond.avatarUrl) this._applyAvatar(data.myPond.avatarUrl)
-      }
-    } catch (e) { logger.warn('MenuScene', 'getPondRanking failed', e) }
+    // Check 5-minute ranking cache first
+    const cached = getCachedRanking()
+    if (cached) {
+      data = cached
+      this._rankingCloudData = data
+      logger.info('MenuScene', 'getPondRanking CACHE HIT')
+    } else {
+      try {
+        const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
+        data = (res as any).result
+        if (data?.ok) setCachedRanking(data)
+        this._rankingCloudData = data
+        logger.info('MenuScene', 'getPondRanking返回 ' + JSON.stringify({ ok: data?.ok, myPond: data?.myPond?.pondId, fatPondLen: data?.fatPondRank?.length, contribKeys: Object.keys(data?.contributors || {}) }))
+      } catch (e) { logger.warn('MenuScene', 'getPondRanking failed', e) }
+    }
+    if (data?.myPond) {
+      this._myCloudData = data.myPond
+      if (data.myPond.avatarUrl) this._applyAvatar(data.myPond.avatarUrl)
+    }
 
     // Determine which pond to show: user selection > my pond > #1 ranked
     let targetPondId = this._currentPondId || data?.myPond?.pondId
@@ -437,112 +449,85 @@ export class MenuScene extends Scene {
     const pond = getPondById(pondId)
     if (!pond) return
 
-    const w = this._screenW
     const h = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
-    const ctn = new PIXI.Container()
-    this._detailOverlay = ctn
-    this._detailOverlayAreas = []
+    const self = this
+    const popup = new PopupView(this._screenW, h, Math.floor(h * 0.62), {
+      width: this._screenW - 32, closable: true, closeOnBackdrop: true,
+      onClose: () => { self._detailOverlay = null; self._detailOverlayAreas = []; self._detailPopup = null }
+    })
+    this._detailOverlay = popup.container
+    this._detailOverlayAreas = popup.hitAreas
+    this._detailPopup = popup
 
-    // Single frosted glass card background
-    const cardX = 16; const cardY = Math.floor(h * 0.08); const cardW = w - 32; const cardH = Math.floor(h * 0.62)
-    const card = new PIXI.Graphics()
-    card.beginFill(0x1A2A3A, 0.82)
-    card.drawRoundedRect(cardX, cardY, cardW, cardH, 16)
-    card.endFill()
-    card.lineStyle(1.5, 0xFFFFFF, 0.18)
-    card.drawRoundedRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1, 16)
-    ctn.addChild(card)
+    const cx = (popup.cardW - 32) / 2; let cy = 16
 
-    const cx = w / 2
-    let cy = cardY + 32
-
-    const emoji = new PIXI.Text(pond.emoji, { fontFamily: 'sans-serif', fontSize: 36, align: 'center' } as any)
+    // Header: emoji + name + slogan
+    const emoji = new PIXI.Text(pond.emoji, { fontFamily: 'sans-serif', fontSize: 36 } as any)
     emoji.anchor.set(0.5); emoji.x = cx; emoji.y = cy
-    ctn.addChild(emoji)
+    popup.content.addChild(emoji)
 
     cy += 40
-    const name = new PIXI.Text(pond.name, { fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF' } as any)
-    name.anchor.set(0.5); name.x = cx; name.y = cy
-    ctn.addChild(name)
+    const nameTxt = new PIXI.Text(pond.name, { fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    nameTxt.anchor.set(0.5); nameTxt.x = cx; nameTxt.y = cy
+    popup.content.addChild(nameTxt)
 
     cy += 24
-    const slogan = new PIXI.Text(`"${pond.slogan}"`, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
-    slogan.anchor.set(0.5); slogan.x = cx; slogan.y = cy
-    ctn.addChild(slogan)
+    const sloganTxt = new PIXI.Text('"' + pond.slogan + '"', { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
+    sloganTxt.anchor.set(0.5); sloganTxt.x = cx; sloganTxt.y = cy
+    popup.content.addChild(sloganTxt)
 
-    // Close button — bottom-right of card
-    const closeW = 64; const closeH = 28
-    const closeX = cardX + cardW - closeW - 8
-    const closeY = cardY + cardH - closeH - 8
-    const closeBg = new PIXI.Graphics()
-    closeBg.beginFill(0xFFFFFF, 0.12)
-    closeBg.drawRoundedRect(closeX, closeY, closeW, closeH, 8)
-    closeBg.endFill()
-    closeBg.lineStyle(1, 0xFFFFFF, 0.22)
-    closeBg.drawRoundedRect(closeX + 0.5, closeY + 0.5, closeW - 1, closeH - 1, 8)
-    ctn.addChild(closeBg)
-    const closeTxt = new PIXI.Text('✕', { fontFamily: 'sans-serif', fontSize: 14, fill: '#FFFFFF' } as any)
-    closeTxt.anchor.set(0.5); closeTxt.x = closeX + closeW / 2; closeTxt.y = closeY + closeH / 2
-    ctn.addChild(closeTxt)
-
-    const self = this
-    this._detailOverlayAreas.push({
-      rect: { x: closeX, y: closeY, w: closeW, h: closeH },
-      cb: () => {
-        self._detailOverlay?.destroy({ children: true })
-        self._detailOverlay = null; self._detailOverlayAreas = []
-      }
-    })
-
-    this.container.addChild(ctn)
-
-    // Fetch detail data (rank, fish count, heroes) into the same card
-    this._loadPondDetailData(w, cy + 10, pondId)
+    this.container.addChild(popup.container)
+    this._loadPondDetailData(popup, cy + 10, pondId)
   }
 
   /** Async load pond detail stats into the overlay */
-  private async _loadPondDetailData(w: number, y: number, pondId: string): Promise<void> {
+  private async _loadPondDetailData(popup: PopupView, startY: number, pondId: string): Promise<void> {
     try {
-      const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId } })
-      const d = (res as any).result
-      if (!d?.ok || !this._detailOverlay) return
+      let d = getCachedDetail(pondId)
+      if (!d) {
+        const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId } })
+        d = (res as any).result
+        if (d?.ok) setCachedDetail(pondId, d)
+      }
+      if (!d?.ok || !popup.container.parent) return
 
-      const cx = w / 2
+      const cx = (popup.cardW - 32) / 2; let cy = startY
+
+      const divider = new PIXI.Graphics()
+      divider.lineStyle(1, 0xFFFFFF, 0.10)
+      divider.moveTo(cx - 80, cy); divider.lineTo(cx + 80, cy)
+      popup.content.addChild(divider)
+      cy += 12
+
       const lines = [
         `🏆 今日排行：第 ${d.rank} 名`,
         `🐟 今日鱼数：${d.dailyClears || 0}`,
         `👥 活跃人数：${d.activeMembers || 0}`,
         `📊 人均：${d.perCapita || 0} 条/人`
       ]
-      const divider = new PIXI.Graphics()
-      divider.lineStyle(1, 0xFFFFFF, 0.12)
-      divider.moveTo(cx - 100, y); divider.lineTo(cx + 100, y)
-      this._detailOverlay.addChild(divider)
-
-      for (let i = 0; i < lines.length; i++) {
-        const t = new PIXI.Text(lines[i], { fontFamily: 'sans-serif', fontSize: 13, fill: '#A8B8C8' } as any)
-        t.anchor.set(0.5); t.x = cx; t.y = y + 12 + i * 26
-        this._detailOverlay.addChild(t)
+      for (const line of lines) {
+        const t = new PIXI.Text(line, { fontFamily: 'sans-serif', fontSize: 13, fill: '#A8B8C8' } as any)
+        t.anchor.set(0.5); t.x = cx; t.y = cy; cy += 24
+        popup.content.addChild(t)
       }
-      let nextY = y + 12 + lines.length * 26 + 12
 
       if (d.heroes?.length) {
-        const div2 = new PIXI.Graphics()
-        div2.lineStyle(1, 0xFFFFFF, 0.10)
-        div2.moveTo(cx - 80, nextY); div2.lineTo(cx + 80, nextY)
-        this._detailOverlay.addChild(div2)
-        nextY += 14
+        cy += 4
+        const d2 = new PIXI.Graphics()
+        d2.lineStyle(1, 0xFFFFFF, 0.08)
+        d2.moveTo(cx - 60, cy); d2.lineTo(cx + 60, cy)
+        popup.content.addChild(d2)
+        cy += 14
 
-        const heroTitle = new PIXI.Text('🏅 鱼塘英雄榜', { fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#E8B45A' } as any)
-        heroTitle.anchor.set(0.5); heroTitle.x = cx; heroTitle.y = nextY
-        this._detailOverlay.addChild(heroTitle)
-        nextY += 24
+        const ht = new PIXI.Text('🏅 鱼塘英雄榜', { fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#E8B45A' } as any)
+        ht.anchor.set(0.5); ht.x = cx; ht.y = cy; cy += 22
+        popup.content.addChild(ht)
 
         for (let i = 0; i < Math.min(d.heroes.length, 10); i++) {
           const h = d.heroes[i]
-          const ht = new PIXI.Text(`${i + 1}. 🐟 通关 ${h.todayClears || 0} 次`, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
-          ht.anchor.set(0.5); ht.x = cx; ht.y = nextY + i * 20
-          this._detailOverlay.addChild(ht)
+          const t = new PIXI.Text(`${i + 1}. 🐟 通关 ${h.todayClears || 0} 次`, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
+          t.anchor.set(0.5); t.x = cx; t.y = cy; cy += 18
+          popup.content.addChild(t)
         }
       }
     } catch {}

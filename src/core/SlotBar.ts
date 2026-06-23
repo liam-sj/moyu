@@ -10,6 +10,9 @@ export class SlotBar {
   maxSlots: number
   private bus: EventBus
   happiness = 0
+  /** Extra slot from 珊瑚庇护 skill, rendered above the rightmost slot */
+  bonusSlot: SlotCard | null = null
+  bonusSlotCount = 0
 
   // Flight mode slots (S1 skill)
   flightSlots: (SlotCard | null)[] = [null, null, null]
@@ -75,6 +78,10 @@ export class SlotBar {
     for (let i = 0; i < this.maxSlots; i++) {
       const idx = i
       allSlots.push({ slot: this.slots[i], clear: () => { this.slots[idx] = null } })
+    }
+    // Bonus slot
+    if (this.bonusSlotCount > 0) {
+      allSlots.push({ slot: this.bonusSlot, clear: () => { this.bonusSlot = null } })
     }
 
     const sameSlots: SlotEntry[] = []
@@ -143,6 +150,16 @@ export class SlotBar {
 
     // Fallback: leftmost empty
     if (targetIdx === -1) targetIdx = this.slots.findIndex(s => s === null)
+    // Try bonus slot if normal slots are full
+    if (targetIdx === -1 && this.bonusSlotCount > 0 && !this.bonusSlot) {
+      this.bonusSlot = {
+        uid: card.uid, type: card.type, config: card.config,
+        cardId: card.cardId, icon: card.icon, name: card.name, isRevealed: card.isRevealed,
+      }
+      this.bus.emit('slotChanged', {})
+      this._checkMatch(card.cardId)
+      return true
+    }
     if (targetIdx === -1) { log(TAG, 'Slot full'); return false }
 
     this.slots[targetIdx] = {
@@ -180,7 +197,12 @@ export class SlotBar {
     return this.slots.filter(s => s === null).length
   }
 
-  isFull(): boolean { return this.getVacantCount() === 0 }
+  private getVacantCountTotal(): number {
+    let count = this.slots.filter(s => s === null).length
+    if (this.bonusSlotCount > 0 && !this.bonusSlot) count++
+    return count
+  }
+  isFull(): boolean { return this.getVacantCountTotal() === 0 }
 
   private _checkMatch(cardId: string): void {
     // Check flight + holding slots — they participate in matching
@@ -270,6 +292,9 @@ export class SlotBar {
       const idx = i
       all.push({ slot: this.slots[i], clear: () => { this.slots[idx] = null } })
     }
+    if (this.bonusSlotCount > 0) {
+      all.push({ slot: this.bonusSlot, clear: () => { this.bonusSlot = null } })
+    }
 
     // Group by cardId
     const groups: Record<string, Array<{ clear: () => void }>> = {}
@@ -306,6 +331,8 @@ export class SlotBar {
     this.flightSlots = [null, null, null]
     this.flightSlotsUsed = 0
     this.holdingSlots = [null, null, null]
+    this.bonusSlot = null
+    this.bonusSlotCount = 0
     for (let i = 0; i < this.maxSlots; i++) this.slots.push(null)
   }
 }

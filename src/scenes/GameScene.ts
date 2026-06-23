@@ -4,6 +4,7 @@ import { GameLogic } from '../core/GameLogic'
 import { CardView, createCardImage } from '../views/CardView'
 import { getFishTex } from '../views/FishView'
 import { Button } from '../views/Button'
+import { PopupView } from '../views/PopupView'
 import { getLevelConfig } from '../config/levels'
 import type {
   BoardCard, GameResult, SkillConfig,
@@ -13,7 +14,9 @@ import type {
 } from '../core/types'
 import { getCardColor } from '../core/Card'
 import { getCachedPond, setCachedPond, getRandomFishId, FISH_TYPES } from '../config/ponds'
+import { getCachedRanking, clearRankingCache, clearDetailCache } from '../config/rankingCache'
 import logger from '../utils/Logger'
+import { AudioManager } from '../utils/AudioManager'
 
 function hexToInt(hex: string): number {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -34,12 +37,33 @@ export class GameScene extends Scene {
   private screenW = 0
   private screenH = 0
 
-  // Pause & skill button hit areas (re-registered every frame)
-  private _pauseHitArea: { x: number; y: number; w: number; h: number } | null = null
-  private _pauseCallback: (() => void) | null = null
+  // Pause & skill & settings button hit areas (re-registered every frame)
   private _skillHitArea: { x: number; y: number; w: number; h: number } | null = null
   private _skillCallback: (() => void) | null = null
   private _skillBtnContainer: PIXI.Container | null = null
+  private _settingsHitArea: { x: number; y: number; w: number; h: number } | null = null
+  private _settingsCallback: (() => void) | null = null
+  private _settingsOverlay: PIXI.Container | null = null
+  private _settingsAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
+  private _musicOn = true
+  private _vibrateOn = true
+
+  private _loadSettings(): void {
+    try {
+      if (typeof wx !== 'undefined') {
+        this._musicOn = wx.getStorageSync('settings_music') !== false  // default true
+        this._vibrateOn = wx.getStorageSync('settings_vibrate') !== false
+      }
+    } catch { /* use defaults */ }
+  }
+  private _saveSettings(): void {
+    try {
+      if (typeof wx !== 'undefined') {
+        wx.setStorageSync('settings_music', this._musicOn)
+        wx.setStorageSync('settings_vibrate', this._vibrateOn)
+      }
+    } catch { /* ignore */ }
+  }
   private _actionHitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _bottomBtnContainers: PIXI.Container[] = []
 
@@ -80,6 +104,9 @@ export class GameScene extends Scene {
     this.screenW = sysInfo.windowWidth
     this.screenH = sysInfo.windowHeight
 
+    this._loadSettings()
+    if (!this._musicOn) AudioManager.pause()
+
     this.container.addChild(this.boardLayer)
     this.container.addChild(this.slotLayer)
     this.container.addChild(this.hudLayer)
@@ -99,7 +126,7 @@ export class GameScene extends Scene {
       bg.alpha = 0.65
       this.container.addChildAt(bg, 0)
     }
-    bgImg.src = 'assets/cards/back.jpg'
+    bgImg.src = 'assets/guanqia3.jpg'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
@@ -124,13 +151,13 @@ export class GameScene extends Scene {
     const btnY = slotBarBottom + 8
     const btnH = 32
     const totalBtnW = this.screenW - 16
-    const btnGap = 6
-    const btnW = Math.floor((totalBtnW - btnGap * 3) / 4)
+    const btnGap = 8
+    const btnW = Math.floor((totalBtnW - btnGap * 2) / 3)
 
     let bx = 8
     // Undo
     const undoBtn = new Button(bx, btnY, btnW, btnH, '↩️ 回游', {
-      bgColor: '#2980B9', fontSize: 11, radius: 6, frosted: true,
+      bgColor: '#2980B9', fontSize: 11, radius: 8, frosted: true,
     })
     this.container.addChild(undoBtn.container)
     this._bottomBtnContainers.push(undoBtn.container)
@@ -139,7 +166,7 @@ export class GameScene extends Scene {
     // Shuffle
     bx += btnW + btnGap
     const shuffleBtn = new Button(bx, btnY, btnW, btnH, '🌊 换潮', {
-      bgColor: '#16A085', fontSize: 11, radius: 6, frosted: true,
+      bgColor: '#16A085', fontSize: 11, radius: 8, frosted: true,
     })
     this.container.addChild(shuffleBtn.container)
     this._bottomBtnContainers.push(shuffleBtn.container)
@@ -156,19 +183,6 @@ export class GameScene extends Scene {
     // Skill
     bx += btnW + btnGap
     this._renderSkillButton(bx, btnY, btnW, btnH)
-
-    // Pause
-    bx += btnW + btnGap
-    const pauseBtn = new Button(bx, btnY, btnW, btnH, '⏸ 暂停', {
-      bgColor: '#7F8C8D', fontSize: 11, radius: 6, frosted: true,
-    })
-    this.container.addChild(pauseBtn.container)
-    this._bottomBtnContainers.push(pauseBtn.container)
-    this._pauseHitArea = pauseBtn.hitArea
-    this._pauseCallback = () => {
-      const { PauseOverlay } = require('./overlays/PauseOverlay')
-      this.manager.push(new PauseOverlay())
-    }
 
     // Initial render
     this.renderSlotBar()
@@ -189,8 +203,9 @@ export class GameScene extends Scene {
     const now = Date.now()
     for (let d = this._dealingCards.length - 1; d >= 0; d--) {
       const dc = this._dealingCards[d]
+      if (!dc.view || (dc.view as any)._destroyed) { this._dealingCards.splice(d, 1); continue }
       const elapsed = now - dc._startTime
-      if (elapsed < 0) continue  // still in delay
+      if (elapsed < 0) continue
       const p = Math.min(elapsed / dc._animMs, 1)
       const t = 1 - Math.pow(1 - p, 3)
       dc.view.container.x = dc._fromX + (dc.targetX - dc._fromX) * t
@@ -206,6 +221,7 @@ export class GameScene extends Scene {
     // Drive shuffle animations (real-time based)
     for (let s = this._shuffleCards.length - 1; s >= 0; s--) {
       const sc = this._shuffleCards[s]
+      if (!sc.view || (sc.view as any)._destroyed) { this._shuffleCards.splice(s, 1); continue }
       const elapsed = now - sc._startTime
       if (elapsed < 0) continue
       const p = Math.min(elapsed / sc._animMs, 1)
@@ -222,16 +238,16 @@ export class GameScene extends Scene {
     // Drive fly-to-slot animations
     for (let f = this._flyEffects.length - 1; f >= 0; f--) {
       const fly = this._flyEffects[f]
+      if (!fly.view || (fly.view as any)._destroyed) { this._flyEffects.splice(f, 1); continue }
       fly.elapsed += dt
       const progress = Math.min(fly.elapsed / fly.duration, 1)
-      // Smooth ease-in-out: gentle start, cruise, gentle landing
       const t = progress < 0.5
         ? 2 * progress * progress
         : 1 - Math.pow(-2 * progress + 2, 2) / 2
       if (this.cardViews.has(fly.uid)) {
-        const t = 1 - Math.pow(1 - progress, 2)
-        fly.view.container.x = fly.startX + (fly.targetX - fly.startX) * t
-        fly.view.container.y = fly.startY + (fly.targetY - fly.startY) * t
+        const t2 = 1 - Math.pow(1 - progress, 2)
+        fly.view.container.x = fly.startX + (fly.targetX - fly.startX) * t2
+        fly.view.container.y = fly.startY + (fly.targetY - fly.startY) * t2
         fly.view.container.scale.set(1 - progress * 0.5)
         fly.view.container.alpha = 1 - progress * 0.3
       }
@@ -241,14 +257,17 @@ export class GameScene extends Scene {
           this.cardViews.delete(fly.uid)
         }
         this._flyEffects.splice(f, 1)
-        // Render slot bar now that card has landed
         this.logic.slotBar.notifySlotChanged()
         const sbar = this.logic.slotBar
+        let matched = false
         for (let i = 0; i < sbar.maxSlots; i++) {
           if (sbar.slots[i] && sbar.slots[i]!.uid === fly.uid) {
             sbar.checkMatch(sbar.slots[i]!.cardId)
-            break
+            matched = true; break
           }
+        }
+        if (!matched && sbar.bonusSlot && sbar.bonusSlot.uid === fly.uid) {
+          sbar.checkMatch(sbar.bonusSlot.cardId)
         }
       }
     }
@@ -288,11 +307,14 @@ export class GameScene extends Scene {
     }
 
     // Re-register buttons every frame
-    if (this._pauseHitArea && this._pauseCallback) {
-      this.registerHitArea(this._pauseHitArea, this._pauseCallback, 15)
-    }
     if (this._skillHitArea && this._skillCallback) {
       this.registerHitArea(this._skillHitArea, this._skillCallback, 15)
+    }
+    if (this._settingsHitArea && this._settingsCallback) {
+      this.registerHitArea(this._settingsHitArea, this._settingsCallback, 16)
+    }
+    for (const item of this._settingsAreas) {
+      this.registerHitArea(item.rect, item.cb, 30)
     }
     for (const item of this._actionHitAreas) {
       this.registerHitArea(item.rect, item.cb, 12)
@@ -481,6 +503,7 @@ export class GameScene extends Scene {
     this._pondPickerAreas = []
     this._celebrationAreas = []
     this._joiningPond = false
+    this._closeSettingsPopup()
 
     // Init new level
     const config = getLevelConfig(levelId)
@@ -499,17 +522,17 @@ export class GameScene extends Scene {
     const btnY2 = slotBarBottom + 8
     const btnH2 = 32
     const totalBtnW2 = this.screenW - 16
-    const btnGap2 = 6
-    const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 3) / 4)
+    const btnGap2 = 8
+    const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 2) / 3)
     let bx2 = 8
     // Undo
-    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 回游', { bgColor: '#2980B9', fontSize: 11, radius: 6, frosted: true })
+    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 回游', { bgColor: '#2980B9', fontSize: 11, radius: 8, frosted: true })
     this.container.addChild(undoBtn2.container)
     this._bottomBtnContainers.push(undoBtn2.container)
     this._actionHitAreas.push({ rect: undoBtn2.hitArea, cb: () => { this.logic.undoLastAction(); this.renderSlotBar(); this.renderHUD() } })
     bx2 += btnW2 + btnGap2
     // Shuffle
-    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🌊 换潮', { bgColor: '#16A085', fontSize: 11, radius: 6, frosted: true })
+    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🌊 换潮', { bgColor: '#16A085', fontSize: 11, radius: 8, frosted: true })
     this.container.addChild(shuffleBtn2.container)
     this._bottomBtnContainers.push(shuffleBtn2.container)
     this._actionHitAreas.push({ rect: shuffleBtn2.hitArea, cb: () => {
@@ -522,12 +545,6 @@ export class GameScene extends Scene {
     bx2 += btnW2 + btnGap2
     // Skill
     this._renderSkillButton(bx2, btnY2, btnW2, btnH2)
-    bx2 += btnW2 + btnGap2
-    // Pause
-    const pauseBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '⏸ 暂停', { bgColor: '#7F8C8D', fontSize: 11, radius: 6, frosted: true })
-    this.container.addChild(pauseBtn2.container)
-    this._bottomBtnContainers.push(pauseBtn2.container)
-    this._pauseHitArea = pauseBtn2.hitArea
 
     // Initial render
     this.renderSlotBar()
@@ -686,43 +703,39 @@ export class GameScene extends Scene {
       }
     }
 
-    // ── Holding slots (移出 area) ──
+    // ── Holding slots (移出区) — just 3 slots, right-aligned above bar ──
     const hasHolding = bar.holdingSlots.some(s => s !== null)
     if (hasHolding) {
-      // Position above normal bar (and above flight bar if present)
       const flightBarH = (freeClicks > 0 || hasFlightCards) ? bar.slotHeight * 0.75 + 30 : 0
-      const holdH = bar.slotHeight  // same size as normal slots
-      const holdY = bar.startY - holdH - 10 - flightBarH
-
-      // Label
-      const holdLabel = new PIXI.Text('📤 移出区', {
-        fontFamily: 'sans-serif', fontSize: 9, fill: '#8E44AD', fontWeight: 'bold',
-      } as any)
-      holdLabel.x = bar.startX; holdLabel.y = holdY - 14
-      this.slotLayer.addChild(holdLabel)
+      const holdY = bar.startY - bar.slotHeight - 6 - flightBarH
+      // Left-align: start from the leftmost position
+      const holdStartX = bar.startX
 
       for (let h = 0; h < 3; h++) {
-        const hx = bar.startX + h * (bar.slotWidth + bar.gap)
+        const hx = holdStartX + h * (bar.slotWidth + bar.gap)
         const hy = holdY
         const hw = bar.slotWidth
         const hCard = bar.holdingSlots[h]
 
         const hs = new PIXI.Graphics()
         if (hCard) {
-          hs.beginFill(0xFFFFFF, 0.12)
-          hs.drawRoundedRect(hx, hy, hw, holdH, 6)
+          hs.beginFill(0xFFFFFF, 0.20)
+          hs.drawRoundedRect(hx, hy, hw, bar.slotHeight, 6)
           hs.endFill()
-          hs.lineStyle(1.5, 0x8E44AD, 0.6)
-          hs.drawRoundedRect(hx, hy, hw, holdH, 6)
+          hs.lineStyle(1.5, 0xF1C40F, 0.6)
+          hs.drawRoundedRect(hx, hy, hw, bar.slotHeight, 6)
           this.slotLayer.addChild(hs)
 
           const hImg = createCardImage(hCard.cardId, hCard.icon,
-            hCard.type === 'event', hCard.isRevealed, hw, holdH)
-          hImg.x = hx + hw / 2; hImg.y = hy + holdH / 2
+            hCard.type === 'event', hCard.isRevealed, hw, bar.slotHeight)
+          hImg.x = hx + hw / 2; hImg.y = hy + bar.slotHeight / 2
           this.slotLayer.addChild(hImg)
         } else {
-          hs.lineStyle(1, 0x8E44AD, 0.25)
-          hs.drawRoundedRect(hx, hy, hw, holdH, 6)
+          hs.beginFill(0xFFFFFF, 0.06)
+          hs.drawRoundedRect(hx, hy, hw, bar.slotHeight, 6)
+          hs.endFill()
+          hs.lineStyle(1, 0xFFFFFF, 0.10)
+          hs.drawRoundedRect(hx + 0.5, hy + 0.5, hw - 1, bar.slotHeight - 1, 6)
           this.slotLayer.addChild(hs)
         }
       }
@@ -737,16 +750,6 @@ export class GameScene extends Scene {
     barBg.drawRoundedRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1, 10)
     this.slotLayer.addChild(barBg)
 
-    // Count same-type cards to highlight slots nearing elimination
-    const counts: Record<string, number[]> = {}
-    for (let i = 0; i < bar.maxSlots; i++) {
-      const s = bar.slots[i]
-      if (!s) continue
-      const key = s.cardId
-      if (!counts[key]) counts[key] = []
-      counts[key].push(i)
-    }
-
     for (let i = 0; i < bar.maxSlots; i++) {
       const slot = bar.slots[i]
       const x = bar.startX + i * (bar.slotWidth + bar.gap)
@@ -757,20 +760,12 @@ export class GameScene extends Scene {
         const colorStr = getCardColor(slot)
         const colorInt = hexToInt(colorStr)
 
-        // Check if this slot is part of a near-elimination (2 of same type)
-        const sameTypeIndices = counts[slot.cardId] || []
-        const nearElim = sameTypeIndices.length >= 2
-
+        // Always bright — slot cards are already "selected" and should stand out
         const bg = new PIXI.Graphics()
-        bg.beginFill(0xFFFFFF, nearElim ? 0.25 : 0.10)
+        bg.beginFill(0xFFFFFF, 0.22)
         bg.drawRoundedRect(x, y, w, h, 6)
         bg.endFill()
-        if (nearElim) {
-          // Glow effect for cards nearing elimination
-          bg.lineStyle(2, 0xF1C40F, 0.7)
-        } else {
-          bg.lineStyle(1, colorInt, 0.35)
-        }
+        bg.lineStyle(2, 0xF1C40F, 0.5)
         bg.drawRoundedRect(x, y, w, h, 6)
         this.slotLayer.addChild(bg)
 
@@ -779,16 +774,6 @@ export class GameScene extends Scene {
           slot.type === 'event', slot.isRevealed, w, h)
         slotImg.x = x + w / 2; slotImg.y = y + h / 2
         this.slotLayer.addChild(slotImg)
-
-        // Count badge (tiny "×2" in corner)
-        if (sameTypeIndices.length >= 2) {
-          const badgeTxt = new PIXI.Text('×' + sameTypeIndices.length, {
-            fontFamily: 'sans-serif', fontSize: Math.max(8, Math.floor(w * 0.18)),
-            fill: '#F1C40F', fontWeight: 'bold',
-          } as any)
-          badgeTxt.anchor.set(1, 0); badgeTxt.x = x + w - 3; badgeTxt.y = y + 2
-          this.slotLayer.addChild(badgeTxt)
-        }
       } else {
         // Empty slot — frosted glass placeholder
         const empty = new PIXI.Graphics()
@@ -808,6 +793,41 @@ export class GameScene extends Scene {
         this.slotLayer.addChild(numTxt)
       }
     }
+
+    // ── Bonus slot (珊瑚庇护 skill): rendered above the rightmost slot ──
+    if (bar.bonusSlotCount > 0) {
+      const x = bar.startX + (bar.maxSlots - 1) * (bar.slotWidth + bar.gap)
+      const y = bar.startY - bar.slotHeight - 8
+      const w = bar.slotWidth; const h = bar.slotHeight
+
+      const bg = new PIXI.Graphics()
+      if (bar.bonusSlot) {
+        bg.beginFill(0xFFFFFF, 0.22)
+        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.endFill()
+        bg.lineStyle(2, 0x2ECC71, 0.7)
+        bg.drawRoundedRect(x, y, w, h, 6)
+        this.slotLayer.addChild(bg)
+
+        const slotImg = createCardImage(bar.bonusSlot.cardId, bar.bonusSlot.icon,
+          bar.bonusSlot.type === 'event', bar.bonusSlot.isRevealed, w, h)
+        slotImg.x = x + w / 2; slotImg.y = y + h / 2
+        this.slotLayer.addChild(slotImg)
+      } else {
+        bg.beginFill(0x1A3040, 0.30)
+        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.endFill()
+        bg.lineStyle(1.5, 0x2ECC71, 0.5)
+        bg.drawRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, 6)
+        this.slotLayer.addChild(bg)
+
+        const plusTxt = new PIXI.Text('+', {
+          fontFamily: 'sans-serif', fontSize: 20, fill: '#2ECC71', fontWeight: 'bold',
+        } as any)
+        plusTxt.anchor.set(0.5); plusTxt.x = x + w / 2; plusTxt.y = y + h / 2
+        this.slotLayer.addChild(plusTxt)
+      }
+    }
   }
 
   // ── HUD ──
@@ -824,26 +844,34 @@ export class GameScene extends Scene {
     levelTxt.x = 10; levelTxt.y = 14
     this.hudLayer.addChild(levelTxt)
 
-    // Oxygen remaining — frosted glass pill
-    const stepsUnlimited = bar.stepsUnlimited
-    const stepsRemain = bar.stepsRemaining
-    const stepsWarn = stepsRemain <= 5 && !stepsUnlimited
-    const stepsDisplay = stepsUnlimited ? '∞' : String(stepsRemain)
-
-    const stepsBg = new PIXI.Graphics()
-    stepsBg.beginFill(stepsWarn ? 0xE87461 : 0x1A3040, 0.55)
-    stepsBg.drawRoundedRect(8, 40, 76, 28, 14)
-    stepsBg.endFill()
-    stepsBg.lineStyle(1, 0xFFFFFF, 0.15)
-    stepsBg.drawRoundedRect(8.5, 40.5, 75, 27, 14)
-    this.hudLayer.addChild(stepsBg)
-
-    const stepsTxt = new PIXI.Text('🫧 ' + stepsDisplay, {
-      fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold',
-      fill: stepsWarn ? '#FFFFFF' : '#7FB3D8',
+    // Settings button — top-left corner
+    const settingsBtn = new PIXI.Text('⚙️', {
+      fontFamily: 'sans-serif', fontSize: 16,
     } as any)
-    stepsTxt.anchor.set(0.5); stepsTxt.x = 46; stepsTxt.y = 54
-    this.hudLayer.addChild(stepsTxt)
+    settingsBtn.x = 8; settingsBtn.y = 68
+    this.hudLayer.addChild(settingsBtn)
+    this._settingsHitArea = { x: 4, y: 64, w: 28, h: 28 }
+    this._settingsCallback = () => { this._showSettingsPopup() }
+
+    // TODO: 氧气系统暂不上线
+    // Oxygen remaining — frosted glass pill
+    // const stepsUnlimited = bar.stepsUnlimited
+    // const stepsRemain = bar.stepsRemaining
+    // const stepsWarn = stepsRemain <= 5 && !stepsUnlimited
+    // const stepsDisplay = stepsUnlimited ? '∞' : String(stepsRemain)
+    // const stepsBg = new PIXI.Graphics()
+    // stepsBg.beginFill(stepsWarn ? 0xE87461 : 0x1A3040, 0.55)
+    // stepsBg.drawRoundedRect(8, 40, 76, 28, 14)
+    // stepsBg.endFill()
+    // stepsBg.lineStyle(1, 0xFFFFFF, 0.15)
+    // stepsBg.drawRoundedRect(8.5, 40.5, 75, 27, 14)
+    // this.hudLayer.addChild(stepsBg)
+    // const stepsTxt = new PIXI.Text('🫧 ' + stepsDisplay, {
+    //   fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold',
+    //   fill: stepsWarn ? '#FFFFFF' : '#7FB3D8',
+    // } as any)
+    // stepsTxt.anchor.set(0.5); stepsTxt.x = 46; stepsTxt.y = 54
+    // this.hudLayer.addChild(stepsTxt)
 
     // Happiness — right side
     const happyTxt = new PIXI.Text('😊 ' + this.logic.happyValue, {
@@ -854,7 +882,7 @@ export class GameScene extends Scene {
 
     // Refresh skill button
     const slotBarBtm = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const bGap = 6; const bW = Math.floor((this.screenW - 16 - bGap * 3) / 4)
+    const bGap = 8; const bW = Math.floor((this.screenW - 16 - bGap * 2) / 3)
     this._renderSkillButton(8 + (bW + bGap) * 2, slotBarBtm + 8, bW, 32)
 
   }
@@ -878,7 +906,7 @@ export class GameScene extends Scene {
         w: board.cardWidth,
         h: board.cardHeight,
       }, () => {
-        if (typeof wx !== 'undefined') { wx.vibrateShort({ type: 'light' }) }
+        if (typeof wx !== 'undefined' && this._vibrateOn) { wx.vibrateShort({ type: 'light' }) }
 
         // Calculate where the card will land in the slot bar
         const bar = this.logic.slotBar
@@ -1068,7 +1096,7 @@ export class GameScene extends Scene {
       const descTxt = new PIXI.Text(skill.desc, {
         fontFamily: 'sans-serif', fontSize: 10,
         fill: isLegendary ? '#E8C870' : '#9B8B7A',
-        wordWrap: true, wordWrapWidth: cardW - 60,
+        wordWrap: true, wordWrapWidth: cardW - 56, breakWords: true,
       } as any)
       descTxt.x = cx + 52; descTxt.y = cy + 32
       sc.addChild(descTxt)
@@ -1334,15 +1362,17 @@ export class GameScene extends Scene {
     const allIds = Object.keys(pondNames)
     const medals = ['🥇','🥈','🥉']
 
-    // Fetch real ranking
+    // Fetch real ranking (with 5-min cache)
     ;(async () => {
       let ranked: Array<{ pondId: string; rank: number; dailyClears: number }> = []
       try {
-        const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-        const d = (res as any).result
+        let d = getCachedRanking()
+        if (!d) {
+          const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
+          d = (res as any).result
+        }
         if (d?.ok && d.fatPondRank) {
           ranked = d.fatPondRank.map((r: any) => ({ pondId: r.pondId, rank: r.rank, dailyClears: r.dailyClears }))
-          // Append any missing ponds at the end
           for (const id of allIds) {
             if (!ranked.find(r => r.pondId === id)) ranked.push({ pondId: id, rank: ranked.length + 1, dailyClears: 0 })
           }
@@ -1428,17 +1458,25 @@ export class GameScene extends Scene {
           nickName = userRes.userInfo.nickName || ''
         }
       } catch (e) {}
-      if (!avatarUrl) {
-        try { avatarUrl = wx.getStorageSync('user_avatar') || '' } catch (e) {}
-      }
 
-      // Call cloud functions
+      // Call merged cloud function (selectFish + contribute + checkAchievements in one call)
       try {
-        await wx.cloud.callFunction({ name: 'selectFish', data: { action: 'select', fishId, pondId, avatarUrl, nickName } })
-        const conRes = await wx.cloud.callFunction({ name: 'contribute', data: {} })
+        const conRes = await wx.cloud.callFunction({
+          name: 'selectAndContribute',
+          data: { fishId, pondId, avatarUrl, nickName, checkAchievements: true }
+        })
         const r = (conRes as any).result
         if (r?.ok) {
+          // Invalidate caches so next fetch gets fresh data
+          clearRankingCache()
+          clearDetailCache()
           bus.emit('pondJoined', { ok: true, pondName, fishName: fishInfo.name, fishEmoji: fishInfo.emoji })
+          // Show achievement toasts if any
+          if (r.newAchievements?.length > 0) {
+            for (const ach of r.newAchievements) {
+              wx.showToast({ title: `${ach.emoji} 获得称号：${ach.name}！`, icon: 'none', duration: 3000 })
+            }
+          }
         } else {
           bus.emit('pondJoined', { ok: false, reason: r?.reason || 'unknown' })
         }
@@ -1452,6 +1490,81 @@ export class GameScene extends Scene {
   private _pondPickerAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _celebrationAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
   private _joiningPond = false  // guard against double-click
+
+  /** Show settings popup: music, vibration, give up */
+  private _showSettingsPopup(): void {
+    if (this._settingsOverlay) return
+    const self = this
+    const popup = new PopupView(this.screenW, this.screenH, 180, {
+      title: '⚙️ 设置', width: 240, closable: true,
+      onClose: () => { self._settingsOverlay = null; self._settingsAreas = [] }
+    })
+    this._settingsOverlay = popup.container
+    this._settingsAreas = popup.hitAreas
+
+    const cw = popup.cardW - 32  // content width
+
+    // Helper: draw a row
+    const drawRow = (y: number, label: string, value: string, valueColor: string, onClick?: () => void) => {
+      const rowH = 36
+      const bg = new PIXI.Graphics()
+      bg.beginFill(0xFFFFFF, 0.08)
+      bg.drawRoundedRect(0, y, cw, rowH, 8)
+      bg.endFill()
+      popup.content.addChild(bg)
+
+      const lt = new PIXI.Text(label, { fontFamily: 'sans-serif', fontSize: 15, fill: '#FFFFFF' } as any)
+      lt.x = 12; lt.y = y + (rowH - 15) / 2
+      popup.content.addChild(lt)
+
+      const vt = new PIXI.Text(value, { fontFamily: 'sans-serif', fontSize: 13, fill: valueColor } as any)
+      vt.anchor.set(1, 0); vt.x = cw - 12; vt.y = y + (rowH - 13) / 2
+      popup.content.addChild(vt)
+
+      if (onClick) popup.addHitArea(0, y, cw, rowH, onClick)
+      return y + rowH + 4
+    }
+
+    let cy = 0
+    cy = drawRow(cy, '🎵 音乐', this._musicOn ? '🟢 开' : '⚫ 关',
+      this._musicOn ? '#2ECC71' : '#7F8C8D', () => {
+        self._musicOn = !self._musicOn; self._saveSettings()
+        if (self._musicOn) AudioManager.resume(); else AudioManager.pause()
+        self._closeSettingsPopup(); self._showSettingsPopup()
+      })
+    cy = drawRow(cy, '📳 震动', this._vibrateOn ? '🟢 开' : '⚫ 关',
+      this._vibrateOn ? '#2ECC71' : '#7F8C8D', () => {
+        self._vibrateOn = !self._vibrateOn; self._saveSettings()
+        self._closeSettingsPopup(); self._showSettingsPopup()
+      })
+
+    cy += 8
+    const btnBg = new PIXI.Graphics()
+    btnBg.beginFill(0xE74C3C, 0.75)
+    btnBg.drawRoundedRect(0, cy, cw, 38, 8)
+    btnBg.endFill()
+    popup.content.addChild(btnBg)
+    const btnTxt = new PIXI.Text('🚪 放弃挑战', { fontFamily: 'sans-serif', fontSize: 15, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    btnTxt.anchor.set(0.5); btnTxt.x = cw / 2; btnTxt.y = cy + 19
+    popup.content.addChild(btnTxt)
+    popup.addHitArea(0, cy, cw, 38, () => {
+      self._closeSettingsPopup()
+      self.logic.skillSystem.destroy()
+      const { MenuScene } = require('./MenuScene')
+      self.manager.replace(new MenuScene())
+    })
+
+    this.container.addChild(popup.container)
+  }
+
+  private _closeSettingsPopup(): void {
+    if (this._settingsOverlay) {
+      this.container.removeChild(this._settingsOverlay)
+      this._settingsOverlay.destroy({ children: true })
+      this._settingsOverlay = null
+      this._settingsAreas = []
+    }
+  }
 
   private onSkillSelected(skill: SkillConfig): void {
     logger.info('GameScene', `onSkillSelected: ${skill.name} id=${skill.id} charges=${this.logic.skillSystem.charges}`)
@@ -1470,31 +1583,6 @@ export class GameScene extends Scene {
         this._showFishResult(fishId, fishInfo)
         return
       }
-
-      // Report contribution (only for Level 2 clears)
-      const cachedPond = getCachedPond()
-      logger.info('GameScene', `onGameOver won=true levelId=${this.levelId} cachedPond=${!!cachedPond}`)
-      if (cachedPond && this.levelId === 'level2') {
-        // Try storage first, fallback to getUserInfo
-        // Use cloud avatar if available, fallback to local storage
-        // Contribute — avatar is already in cloud from selectFish, no local storage needed
-        wx.cloud.callFunction({
-          name: 'contribute',
-          data: {}  // contribute reads avatarUrl from players record
-        }).then((res: any) => {
-          const d = (res as any).result; logger.info('GameScene', 'contribute返回 ' + JSON.stringify(d))
-          if (d && d.ok) { setCachedPond({ ...cachedPond, todayContribution: d.todayContribution }); wx.showToast({ title: `🐟 你为${d.pondName}+1条鱼！`, icon: 'none', duration: 2000 }) }
-        }).catch((e: any) => logger.warn('GameScene', 'contribute失败', e))
-      }
-
-      // Check achievements
-      wx.cloud.callFunction({ name: 'checkAchievements', data: {} }).then((res: any) => {
-        if (res.result?.ok && res.result.newAchievements?.length > 0) {
-          for (const ach of res.result.newAchievements) {
-            wx.showToast({ title: `${ach.emoji} 获得称号：${ach.name}！`, icon: 'none', duration: 3000 })
-          }
-        }
-      }).catch(() => {})
 
       // Level 1 auto-advances to Level 2 on win
       if (result.levelId === 'level1') {

@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { getPondById } from '../config/ponds'
+import { getCachedDetail, setCachedDetail } from '../config/rankingCache'
 
 export class PondDetailScene extends Scene {
   private _pondId: string
@@ -70,8 +71,12 @@ export class PondDetailScene extends Scene {
 
   private async _loadDetail(w: number, y: number): Promise<void> {
     try {
-      const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId: this._pondId } })
-      const d = (res as any).result
+      let d = getCachedDetail(this._pondId)
+      if (!d) {
+        const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId: this._pondId } })
+        d = (res as any).result
+        if (d?.ok) setCachedDetail(this._pondId, d)
+      }
       if (!d?.ok) return
 
       const cx = w / 2

@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { PONDS, PondConfig, setCachedPond } from '../config/ponds'
+import { clearRankingCache, clearDetailCache } from '../config/rankingCache'
 
 export class SelectFishScene extends Scene {
   private _hitAreas: Array<{ rect: { x: number; y: number; w: number; h: number }; cb: () => void }> = []
@@ -117,20 +118,14 @@ export class SelectFishScene extends Scene {
 
     try {
       const res = await wx.cloud.callFunction({
-        name: 'selectFish',
-        data: { action: 'select', fishId: pond.fishId, pondId: pond.id, avatarUrl, nickName: infoRes?.userInfo?.nickName || '' }
+        name: 'selectAndContribute',
+        data: { fishId: pond.fishId, pondId: pond.id, avatarUrl, nickName: infoRes?.userInfo?.nickName || '', fishSelectionShown: true }
       })
       const data = (res as any).result
       console.log('[SelectFish] 云函数返回', JSON.stringify(data))
       if (data.ok) {
         setCachedPond({ pondId: pond.id, fishId: pond.fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
-        // Upload avatar to cloud
-        if (avatarUrl) wx.cloud.callFunction({ name: 'updateAvatar', data: { avatarUrl, nickName: infoRes?.userInfo?.nickName || '', fishSelectionShown: true } })
-        // Immediately contribute the first fish to the pond (await so data is ready)
-        try {
-          const cr = await wx.cloud.callFunction({ name: 'contribute', data: {} })
-          console.log('[SelectFish] 首次贡献', JSON.stringify((cr as any).result))
-        } catch (e) { console.log('[SelectFish] 首次贡献失败', e) }
+        clearRankingCache(); clearDetailCache()
         // Return to menu — data is now ready
         const { MenuScene } = require('./MenuScene')
         this.manager.replace(new MenuScene())

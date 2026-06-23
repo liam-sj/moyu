@@ -7,7 +7,7 @@ const TAG = 'SkillSystem'
 
 export class SkillSystem {
   private eliminateCount = 0
-  private triggerThreshold = 3
+  private triggerThreshold = 1
   /** Charges available for the player to use a skill */
   charges = 0
   /** Maximum charges that can be accumulated */

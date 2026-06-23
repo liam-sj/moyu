@@ -211,7 +211,12 @@ export class GameLogic {
       get slotFreeClicks() { return self.stepManager.slotFreeClicks },
       set slotFreeClicks(v: number) { self.stepManager.slotFreeClicks = v },
       get slotLimit() { return self.stepManager.slotLimit },
-      set slotLimit(v: number) { self.stepManager.slotLimit = v },
+      set slotLimit(v: number) {
+        self.stepManager.slotLimit = v
+        // Sync visual: show a bonus slot above the bar
+        self.slotBar.bonusSlotCount = v - self.stepManager.baseSlotLimit
+        self.bus.emit('slotChanged', {})
+      },
       get clearMostInSlot() { return false },
       set clearMostInSlot(v: boolean) { if (v) self.slotBar.clearMostCardType() },
       get removeCoveredCards() { return 0 },
@@ -280,6 +285,10 @@ export class GameLogic {
     for (let i = 0; i < this.slotBar.maxSlots; i++) {
       const s = this.slotBar.slots[i]; if (!s) continue
       counts[s.cardId] = (counts[s.cardId] || 0) + 1
+    }
+    // Also check bonus slot
+    if (this.slotBar.bonusSlot) {
+      counts[this.slotBar.bonusSlot.cardId] = (counts[this.slotBar.bonusSlot.cardId] || 0) + 1
     }
     for (const k in counts) { if (counts[k] >= 3) { canEliminate = true; break } }
 

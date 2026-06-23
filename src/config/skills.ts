@@ -32,36 +32,40 @@ const SKILLS: SkillConfig[] = [
     desc: '随机移除棋盘上3张被压住的卡',
     apply: (c: Ctx) => { c.removeCoveredCards = 3 } },
 
-  { id: 'S5', name: '珍珠幻化',   icon: '💎', tag: TAG.WILD,
-    desc: '将槽位中一张卡变成万能珍珠',
-    apply: (c: Ctx) => { c.transformToWild = 1 } },
+  // TODO: 珍珠幻化暂不上线
+  // { id: 'S5', name: '珍珠幻化',   icon: '💎', tag: TAG.WILD,
+  //   desc: '将槽位中一张卡变成万能珍珠',
+  //   apply: (c: Ctx) => { c.transformToWild = 1 } },
 
-  { id: 'S6', name: '贝壳护盾',   icon: '🐚', tag: TAG.LIFE_SAVER,
+  { id: 'S6', name: '贝壳护盾',   icon: '🐚', tag: TAG.LEGENDARY,
     desc: '下一次槽满时不失败，改为清空全部槽位',
     apply: (c: Ctx) => { c.slotOverflowShield = true } },
 
-  { id: 'S7', name: '鱼跃冲刺',   icon: '🐟', tag: TAG.ENDURANCE,
-    desc: '额外获得5步',
-    apply: (c: Ctx) => { c.stepsRemaining += 5 } },
+  // TODO: 步数系统暂不上线, S7 暂注释
+  // { id: 'S7', name: '鱼跃冲刺',   icon: '🐟', tag: TAG.ENDURANCE,
+  //   desc: '额外获得5步',
+  //   apply: (c: Ctx) => { c.stepsRemaining += 5 } },
 
-  { id: 'S8', name: '鱼网清除',   icon: '🎣', tag: TAG.CLEAR,
+  { id: 'S8', name: '鱼网清除',   icon: '🎣', tag: TAG.LEGENDARY,
     desc: '指定一种卡，本局该种卡全部消除',
     apply: (c: Ctx) => { c.selectAndClear = true } },
 
   // ═══ 传说技能 (S9-S10, ~1/10 概率) ═══
-  { id: 'S9', name: '龙门飞跃',   icon: '🐉', tag: TAG.LEGENDARY,
-    desc: '本局取消步数限制，但槽位上限-2',
-    apply: (c: Ctx) => {
-      c.stepsUnlimited = true
-      c.slotLimit = Math.max(3, c.slotLimit - 2)
-    } },
+  // TODO: 步数系统暂不上线, S9 暂注释
+  // { id: 'S9', name: '龙门飞跃',   icon: '🐉', tag: TAG.LEGENDARY,
+  //   desc: '本局取消步数限制，但槽位上限-2',
+  //   apply: (c: Ctx) => {
+  //     c.stepsUnlimited = true
+  //     c.slotLimit = Math.max(3, c.slotLimit - 2)
+  //   } },
 
-  { id: 'S10', name: '深海自由', icon: '🐋', tag: TAG.LEGENDARY,
-    desc: '本局槽位上限取消，但步数减半',
-    apply: (c: Ctx) => {
-      c.slotUnlimited = true
-      c.stepsRemaining = Math.floor(c.stepsRemaining / 2)
-    } },
+  // TODO: 步数系统暂不上线, S10 暂注释
+  // { id: 'S10', name: '深海自由', icon: '🐋', tag: TAG.LEGENDARY,
+  //   desc: '本局槽位上限取消，但步数减半',
+  //   apply: (c: Ctx) => {
+  //     c.slotUnlimited = true
+  //     c.stepsRemaining = Math.floor(c.stepsRemaining / 2)
+  //   } },
 ]
 
 /**

@@ -20,20 +20,18 @@ exports.main = async (event, context) => {
 
     if (!pondId) return { ok: false, reason: 'missing_pondId' }
 
-    // ── 1. Pond daily stats ──
-    const stats = await safeGet(db.collection('pond_daily_stats').where({ pondId, date }))
-    const stat = stats.data[0] || { dailyClears: 0, activePlayers: [] }
+    // ── Parallel: 3 independent queries ──
+    const [allPonds, contribs, streakResult] = await Promise.all([
+      safeGet(db.collection('pond_daily_stats').where({ date }).orderBy('dailyClears', 'desc')),
+      safeGet(db.collection('contributions').where({ pondId, date })),
+      safeGet(db.collection('pond_streaks').where({ pondId }))
+    ])
 
-    // ── 2. Rank (by dailyClears among all ponds today) ──
-    const allPonds = await safeGet(
-      db.collection('pond_daily_stats').where({ date }).orderBy('dailyClears', 'desc')
-    )
+    // Extract target pond stats from allPonds (no separate query needed)
+    const stat = allPonds.data.find(p => p.pondId === pondId) || { dailyClears: 0, activePlayers: [] }
     const rank = allPonds.data.findIndex(p => p.pondId === pondId) + 1
 
-    // ── 3. Heroes: top contributors today from contributions collection ──
-    const contribs = await safeGet(db.collection('contributions').where({ pondId, date }))
-
-    // Group by openId
+    // Heroes: group contributions by openId
     const byPlayer = {}
     for (const c of contribs.data) {
       const uid = c.openId
@@ -52,18 +50,13 @@ exports.main = async (event, context) => {
       .sort((a, b) => b.todayClears - a.todayClears)
       .slice(0, 10)
 
-    // ── 4. Streak ──
-    const streakResult = await safeGet(db.collection('pond_streaks').where({ pondId }))
-    const streakDays = streakResult.data.length > 0 ? streakResult.data[0].streakDays : 0
+    // My contribution — from already-fetched data (no extra query)
+    const myContribution = openId
+      ? contribs.data.filter(c => c.openId === openId).length
+      : 0
 
-    // ── 5. My contribution ──
-    let myContribution = 0
-    if (openId) {
-      const myCount = await safeCount(
-        db.collection('contributions').where({ openId, pondId, date })
-      )
-      myContribution = myCount.total
-    }
+    // Streak
+    const streakDays = streakResult.data.length > 0 ? streakResult.data[0].streakDays : 0
 
     return {
       ok: true,

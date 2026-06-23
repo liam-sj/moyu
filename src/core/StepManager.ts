@@ -31,7 +31,7 @@ export class StepManager {
     this.slotFreeClicks = 0
     this.tempSlotLimit9 = 0
     this.slotOverflowShield = false
-    this.stepsUnlimited = false
+    this.stepsUnlimited = true   // TODO: 氧气系统暂不上线
     this.slotUnlimited = false
     this._emit()
   }

@@ -4,16 +4,30 @@ import { getDPR } from '../platform/PixiAdapter'
 /** Single swimming fish with state-machine animation */
 /** Load fish sprite sheet once */
 let _fishTexture: PIXI.BaseTexture | null = null
+/** Callbacks fired when atlas finishes loading — so views can re-render fish */
+const _onReadyCallbacks: Array<() => void> = []
+
+export function onFishAtlasReady(cb: () => void): void {
+  if (_fishTexture) { cb(); return }
+  _onReadyCallbacks.push(cb)
+}
 
 export function loadFishAtlas(url: string): void {
   const img = wx.createImage()
   img.onload = () => {
-    const canvas = wx.createCanvas(); canvas.width = img.width; canvas.height = img.height
+    const canvas = wx.createCanvas()
+    canvas.width = img.width; canvas.height = img.height
     canvas.getContext('2d').drawImage(img, 0, 0)
     _fishTexture = PIXI.BaseTexture.from(canvas)
+    // Notify all waiting views to re-render with real sprites
+    const cbs = _onReadyCallbacks.splice(0)
+    for (const cb of cbs) cb()
   }
+  img.onerror = () => { /* keep emoji fallback */ }
   img.src = url
 }
+
+export function isFishAtlasReady(): boolean { return _fishTexture !== null }
 
 const FISH_ORDER = ['xiaojinyu','xianyugan','jinli','hetun','moyu','haima','feiyu','zhangyu','bimuyu','pangxie','jianyu','haitun','__announcer__']
 
@@ -65,27 +79,48 @@ export class FishView {
   stateTimer: number
   private _traits: FishTraits
   private _avatarSprite: PIXI.Sprite | null = null
+  _destroyed = false
   /** Crab lives at the bottom — restricted vertical movement */
   readonly bottomDweller: boolean
+
+  private _createSprite(tex: PIXI.Texture, fishId: string, size: number): PIXI.Sprite {
+    const sp = new PIXI.Sprite(tex)
+    sp.anchor.set(0.5)
+    sp.height = size
+    sp.width = tex.width * (size / tex.height)
+    return sp
+  }
 
   constructor(fishId: string, idx: number, x: number, y: number, size: number) {
     this._traits = FISH_TRAITS[fishId] || FISH_TRAITS.xiaojinyu
     this.bottomDweller = fishId === 'pangxie'
     this.container = new PIXI.Container()
+    this.container.x = x; this.container.y = y
+
     const tex = getFishTex(fishId, idx)
     if (tex) {
-      this.sprite = new PIXI.Sprite(tex)
-      this.sprite.anchor.set(0.5)
-      this.sprite.height = size
-      this.sprite.width = tex.width * (size / tex.height)
+      this.sprite = this._createSprite(tex, fishId, size)
     } else {
+      // Atlas not ready yet — use emoji placeholder, upgrade when loaded
       const emoji = fishId === '__announcer__' ? '🦈' : '🐟'
       this.sprite = new PIXI.Text(emoji, { fontFamily: 'sans-serif', fontSize: size, align: 'center' } as any)
       this.sprite.anchor.set(0.5)
+      // Register callback to swap emoji → real sprite when atlas loads
+      const self = this; const fId = fishId; const sz = size
+      onFishAtlasReady(() => {
+        if (!self.container || self._destroyed) return
+        const newTex = getFishTex(fId, idx)
+        if (newTex) {
+          const oldSprite = self.sprite
+          self.container.removeChild(oldSprite as any)
+          if (oldSprite instanceof PIXI.Text) oldSprite.destroy()
+          self.sprite = self._createSprite(newTex, fId, sz)
+          self.container.addChildAt(self.sprite as any, 0)
+        }
+      })
     }
     this.sprite.x = 0; this.sprite.y = 0
     this.container.addChild(this.sprite as any)
-    this.container.x = x; this.container.y = y
     this.sprite.alpha = 0.85
 
     const t = this._traits
@@ -124,16 +159,23 @@ export class FishView {
     else if (this.state === 'dash') speedMul = t.dashSpeedMul
     else if (this.state === 'turn') speedMul = 0.3
 
-    // Repulsion from announcer fish (shark)
+    // Repulsion from announcer fish (shark) — turn away and dash
     if (repeller) {
       const dx = this.container.x - repeller.x
       const dy = this.container.y - repeller.y
       const dist = Math.sqrt(dx * dx + dy * dy)
       const repelRadius = 100
       if (dist < repelRadius && dist > 0) {
+        // Push away
         const force = (repelRadius - dist) / repelRadius * 0.8
         this.container.x += (dx / dist) * force * dt
         this.container.y += (dy / dist) * force * dt
+        // Turn to face away from shark + dash
+        if (dist < repelRadius * 0.7 && this.state !== 'dash') {
+          this.vx = Math.abs(this.vx) * (dx > 0 ? 1 : -1)  // face away from shark
+          this.state = 'dash'
+          this.stateTimer = 15 + Math.random() * 25
+        }
       }
     }
 
@@ -184,22 +226,37 @@ export class FishView {
     this.sprite.rotation = wag
   }
 
-  /** Show avatar above the fish */
+  /** Show avatar above the fish. Uses real image when available, generates default when not. */
   setAvatar(url: string): void {
-    if (!url || this._avatarSprite) return
-    const img = wx.createImage()
+    if (this._avatarSprite) return
     const self = this
-    img.onload = () => {
-      if (!self.sprite || !self.container || self._destroyed) return
-      const fishSize = self.sprite.height || 30
-      const avatarSize = Math.floor(fishSize * 0.5)
+    const fishSize = this.sprite.height || 30
+    const avatarSize = Math.floor(fishSize * 0.5)
+
+    const renderAvatar = (sourceCanvas?: any) => {
+      if (!self.sprite || !self.container || self._destroyed || self._avatarSprite) return
       const dpr = getDPR()
       const canvas = wx.createCanvas()
       canvas.width = avatarSize * dpr; canvas.height = avatarSize * dpr
       const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
       ctx.scale(dpr, dpr)
       ctx.beginPath(); ctx.arc(avatarSize/2, avatarSize/2, avatarSize/2, 0, Math.PI * 2); ctx.clip()
-      ctx.drawImage(img, 0, 0, avatarSize, avatarSize)
+
+      if (sourceCanvas) {
+        // Real avatar image
+        ctx.drawImage(sourceCanvas, 0, 0, avatarSize, avatarSize)
+      } else {
+        // Default avatar: colored circle with fish emoji
+        const colors = ['#3498DB', '#E67E22', '#2ECC71', '#9B59B6', '#1ABC9C', '#E74C3C', '#F39C12', '#2980B9']
+        const color = colors[Math.abs(hashCode(self.vx + self.vy)) % colors.length]
+        ctx.fillStyle = color
+        ctx.fill()
+        ctx.fillStyle = '#FFFFFF'
+        ctx.font = `${avatarSize * 0.55}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('🐟', avatarSize / 2, avatarSize / 2 + 1)
+      }
+
       const tex = PIXI.Texture.from(canvas)
       self._avatarSprite = new PIXI.Sprite(tex)
       self._avatarSprite.width = avatarSize; self._avatarSprite.height = avatarSize
@@ -207,8 +264,27 @@ export class FishView {
       self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.5 - 6
       self.container.addChild(self._avatarSprite)
     }
-    img.src = url
+
+    if (url) {
+      const img = wx.createImage()
+      img.onload = () => renderAvatar(img)
+      img.onerror = () => renderAvatar()  // fallback to default
+      img.src = url
+    } else {
+      renderAvatar()  // no URL, use default immediately
+    }
   }
 
-  destroy(): void { this.container.destroy({ children: true }) }
+  destroy(): void { this._destroyed = true; this.container.destroy({ children: true }) }
+}
+
+/** Simple string hash for deterministic color assignment */
+function hashCode(s: string | number): number {
+  const str = String(s)
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash)
 }
