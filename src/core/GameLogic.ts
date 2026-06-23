@@ -66,17 +66,23 @@ export class GameLogic {
       return
     }
 
-    // Reveal event card
+    // Reveal event card — if the effect already placed the card, skip addCard
+    let cardConsumed = false
     if (card.type === 'event' && !card.isRevealed) {
-      this._revealEventCard(card)
+      cardConsumed = this._revealEventCard(card)
     }
 
     // Flight mode: card goes to special flight slots above the bar
-    if (this.stepManager.slotFreeClicks > 0) {
+    if (cardConsumed) {
+      // Card already placed by effect (e.g. boss_patrol), nothing more to do
+    } else if (this.stepManager.slotFreeClicks > 0) {
       this.stepManager.slotFreeClicks--
       this.slotBar.addToFlightSlot(card)
     } else if (this.stepManager.occupiesSlot()) {
       if (!this.slotBar.addCard(card)) {
+        // Card couldn't be placed — put it back before checking failure
+        this.board.restoreCard(card)
+        this.stepManager.stepsRemaining++
         this._checkFailure()
         return
       }
@@ -99,12 +105,14 @@ export class GameLogic {
     this._checkFailure()
   }
 
-  private _revealEventCard(card: any): void {
+  /** Returns true if the card was already placed/handled by the effect */
+  private _revealEventCard(card: any): boolean {
+    // Pity system: after 3 consecutive negative reveals, force a positive card
     if (this.consecutiveNegative >= 3) {
-      const positiveCards = ['pearl', 'dragon']
-      const pick = positiveCards[Math.floor(Math.random() * positiveCards.length)]
-      for (const fc of FUNC_CARDS) {
-        if (fc.id === pick) { card.config = fc; card.cardId = fc.id; break }
+      const positiveCards = FUNC_CARDS.filter(c => c.type === 'positive')
+      if (positiveCards.length > 0) {
+        const pick = positiveCards[Math.floor(Math.random() * positiveCards.length)]
+        card.config = pick; card.cardId = pick.id
       }
       this.consecutiveNegative = 0
     }
@@ -113,13 +121,16 @@ export class GameLogic {
     if (config.revealIcon) card.icon = config.revealIcon
     if (config.revealName) card.name = config.revealName
 
-    this._applyFuncEffect(card)
+    const consumed = this._applyFuncEffect(card)
 
     if (config.type === 'negative') this.consecutiveNegative++
     else this.consecutiveNegative = 0
+
+    return consumed
   }
 
-  private _applyFuncEffect(card: any): void {
+  /** Returns true if the card was already placed in a slot by the effect (skip addCard) */
+  private _applyFuncEffect(card: any): boolean {
     const effect = card.config.effect
     switch (effect) {
       case 'boss_patrol': {
@@ -128,18 +139,24 @@ export class GameLogic {
         for (let i = 0; i < slots.length; i++) { if (slots[i]) nonNull.push(i) }
         if (nonNull.length > 0) {
           const target = nonNull[Math.floor(Math.random() * nonNull.length)]
-          slots[target] = { uid: 'shark', type: 'event', config: card.config, cardId: 'shark', icon: '🦈', name: '鲨鱼来袭', isRevealed: true }
+          // Use the actual card, not a fake one
+          slots[target] = { uid: card.uid, type: 'event', config: card.config, cardId: card.cardId, icon: card.icon, name: card.name, isRevealed: true }
+          this.bus.emit('slotChanged', {})
+          return true
         }
-        this.bus.emit('slotChanged', {})
-        break
+        // No cards to replace — let normal addCard handle it
+        return false
       }
       case 'slot_limit_down': this.stepManager.slotLimit = Math.max(3, this.stepManager.slotLimit - 1); break
       case 'shuffle_slots': this.slotBar.shuffleSlots(); break
       case 'remove_most': this.slotBar.clearMostCardType(); break
       case 'add_steps_3': this.stepManager.stepsRemaining += 3; this.stepManager['_emit']?.(); break
       case 'double_happy_10': this._happyMultiplier = 2; this._happyMultiplierSteps = 10; break
+      case 'swap_board_cards': this.board.swapTwoCards(); break
+      case 'wild_card': /* passive — matching handled by SlotBar */ break
       default: break
     }
+    return false
   }
 
   onEliminate(count: number): void {
@@ -282,15 +299,34 @@ export class GameLogic {
 
     let canEliminate = false
     const counts: Record<string, number> = {}
-    for (let i = 0; i < this.slotBar.maxSlots; i++) {
+    let wildCount = 0
+    for (let i = 0; i < this.slotBar.slots.length; i++) {
       const s = this.slotBar.slots[i]; if (!s) continue
-      counts[s.cardId] = (counts[s.cardId] || 0) + 1
+      if (s.type === 'event' && (s.config as any).effect === 'wild_card' && s.isRevealed)
+        wildCount++
+      else
+        counts[s.cardId] = (counts[s.cardId] || 0) + 1
     }
-    // Also check bonus slot
     if (this.slotBar.bonusSlot) {
-      counts[this.slotBar.bonusSlot.cardId] = (counts[this.slotBar.bonusSlot.cardId] || 0) + 1
+      const bs = this.slotBar.bonusSlot
+      if (bs.type === 'event' && (bs.config as any).effect === 'wild_card' && bs.isRevealed)
+        wildCount++
+      else
+        counts[bs.cardId] = (counts[bs.cardId] || 0) + 1
     }
-    for (const k in counts) { if (counts[k] >= 3) { canEliminate = true; break } }
+    for (const h of this.slotBar.holdingSlots) {
+      if (!h) continue
+      if (h.type === 'event' && (h.config as any).effect === 'wild_card' && h.isRevealed)
+        wildCount++
+      else
+        counts[h.cardId] = (counts[h.cardId] || 0) + 1
+    }
+    // Any type reaching 3 (with wild card help) means elimination is possible
+    for (const k in counts) {
+      if (counts[k] + wildCount >= 3) { canEliminate = true; break }
+    }
+    // 3 wild cards alone can match
+    if (wildCount >= 3) canEliminate = true
 
     const result = this.stepManager.checkFailure(slotFull, canEliminate)
     if (result.shieldActivated) {

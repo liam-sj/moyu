@@ -157,7 +157,7 @@ export class GameScene extends Scene {
     let bx = 8
     // Undo
     const undoBtn = new Button(bx, btnY, btnW, btnH, '↩️ 回游', {
-      bgColor: '#2980B9', fontSize: 11, radius: 8, frosted: true,
+      bgColor: '#2980B9', fontSize: 15, radius: 8, frosted: true,
     })
     this.container.addChild(undoBtn.container)
     this._bottomBtnContainers.push(undoBtn.container)
@@ -166,7 +166,7 @@ export class GameScene extends Scene {
     // Shuffle
     bx += btnW + btnGap
     const shuffleBtn = new Button(bx, btnY, btnW, btnH, '🌊 换潮', {
-      bgColor: '#16A085', fontSize: 11, radius: 8, frosted: true,
+      bgColor: '#16A085', fontSize: 15, radius: 8, frosted: true,
     })
     this.container.addChild(shuffleBtn.container)
     this._bottomBtnContainers.push(shuffleBtn.container)
@@ -370,7 +370,7 @@ export class GameScene extends Scene {
     ctn.addChild(bg)
 
     const txt = new PIXI.Text('🃏 ' + charges, {
-      fontFamily: 'sans-serif', fontSize: 18, fontWeight: 'bold',
+      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold',
       fill: hasCharges ? '#FFFFFF' : '#8899AA',
     } as any)
     txt.anchor.set(0.5); txt.x = x + w / 2; txt.y = y + h / 2
@@ -384,11 +384,10 @@ export class GameScene extends Scene {
     }
   }
 
-  /** Level difficulty warning — frosted glass slide-in, content from level config */
+  /** Simple difficulty notification — slide in from right, hold, slide out */
   private _showDifficultyWarning(): void {
-    const config = getLevelConfig(this.levelId)
-    const w = this.screenW; const h = this.screenH
-    const panelW = 270; const panelH = 140
+    const w = this.screenW
+    const panelW = 240; const panelH = 100
     const px = (w - panelW) / 2; const py = 40
 
     const panel = new PIXI.Container()
@@ -402,49 +401,24 @@ export class GameScene extends Scene {
     bg.endFill()
     bg.lineStyle(1.5, 0xFFFFFF, 0.20)
     bg.drawRoundedRect(0.5, 0.5, panelW - 1, panelH - 1, 16)
-    // Top highlight
     bg.beginFill(0xFFFFFF, 0.10)
     bg.drawRoundedRect(4, 2, panelW - 8, Math.floor(panelH * 0.35), 12)
     bg.endFill()
     panel.addChild(bg)
 
-    // Warning icon
-    const icon = new PIXI.Text('⚠️', {
-      fontFamily: 'sans-serif', fontSize: 30, align: 'center',
+    // ⚠️ 难度飙升
+    const title = new PIXI.Text('⚠️ 难度飙升', {
+      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#F39C12',
     } as any)
-    icon.anchor.set(0.5); icon.x = panelW / 2; icon.y = 30
-    panel.addChild(icon)
-
-    // Dynamic title from level config
-    const levelName = config.name || '未知关卡'
-    const title = new PIXI.Text(levelName, {
-      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#F39C12',
-    } as any)
-    title.anchor.set(0.5); title.x = panelW / 2; title.y = 60
+    title.anchor.set(0.5); title.x = panelW / 2; title.y = 36
     panel.addChild(title)
 
-    // Dynamic description from level config
-    const details: string[] = []
-    if (config.layers > 1) details.push(`${config.layers}层金字塔`)
-    if (config.totalCards) details.push(`${config.totalCards}张卡片`)
-    if (config.normalCardTypes) details.push(`${config.normalCardTypes}种鱼类`)
-    if (config.slotLimit) details.push(`槽位${config.slotLimit}格`)
-    if (config.funcCardCount > 0) details.push('含功能卡')
-    const descText = details.join(' · ') || '准备好了吗？'
-    const desc = new PIXI.Text(descText, {
-      fontFamily: 'sans-serif', fontSize: 12, fill: '#A0B8C8',
+    // 通关后可加入鱼塘
+    const desc = new PIXI.Text('通关后可加入鱼塘', {
+      fontFamily: 'sans-serif', fontSize: 14, fill: '#A0B8C8',
     } as any)
-    desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 90
+    desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 68
     panel.addChild(desc)
-
-    // Step limit hint
-    if (config.steps < 99) {
-      const stepHint = new PIXI.Text(`氧气仅够${config.steps}次呼吸！`, {
-        fontFamily: 'sans-serif', fontSize: 11, fill: '#E87461',
-      } as any)
-      stepHint.anchor.set(0.5); stepHint.x = panelW / 2; stepHint.y = 112
-      panel.addChild(stepHint)
-    }
 
     this.container.addChild(panel)
 
@@ -599,17 +573,21 @@ export class GameScene extends Scene {
       }
     } else if (this._firstRender) {
       this._firstRender = false
+      // More dramatic cascade for deeper levels
+      const isDeep = this.levelId !== 'level1'
+      const layerDelay = isDeep ? 80 : 60
+      const cardDelay = isDeep ? 8 : 5
+      const animMs = isDeep ? 500 : 350
       for (let i = 0; i < views.length; i++) {
         const view = views[i]
-        ;(view as any)._deckFromX = deckX; (view as any)._deckFromY = deckY
         view.container.x = deckX; view.container.y = deckY
-        view.container.alpha = 0; view.container.scale.set(0.6)
+        view.container.alpha = 0; view.container.scale.set(0.4)
         this._dealingCards.push({
           view, uid: view.uid,
           targetX: view.targetX, targetY: view.targetY,
           _fromX: deckX, _fromY: deckY,
-          _startTime: Date.now() + view.layer * 60 + i * 5,
-          _animMs: 350,
+          _startTime: Date.now() + view.layer * layerDelay + i * cardDelay,
+          _animMs: animMs,
         })
       }
     } else {
@@ -707,7 +685,7 @@ export class GameScene extends Scene {
     const hasHolding = bar.holdingSlots.some(s => s !== null)
     if (hasHolding) {
       const flightBarH = (freeClicks > 0 || hasFlightCards) ? bar.slotHeight * 0.75 + 30 : 0
-      const holdY = bar.startY - bar.slotHeight - 6 - flightBarH
+      const holdY = bar.startY - bar.slotHeight - 16 - flightBarH
       // Left-align: start from the leftmost position
       const holdStartX = bar.startX
 
@@ -797,7 +775,7 @@ export class GameScene extends Scene {
     // ── Bonus slot (珊瑚庇护 skill): rendered above the rightmost slot ──
     if (bar.bonusSlotCount > 0) {
       const x = bar.startX + (bar.maxSlots - 1) * (bar.slotWidth + bar.gap)
-      const y = bar.startY - bar.slotHeight - 8
+      const y = bar.startY - bar.slotHeight - 18
       const w = bar.slotWidth; const h = bar.slotHeight
 
       const bg = new PIXI.Graphics()
@@ -846,11 +824,11 @@ export class GameScene extends Scene {
 
     // Settings button — top-left corner
     const settingsBtn = new PIXI.Text('⚙️', {
-      fontFamily: 'sans-serif', fontSize: 16,
+      fontFamily: 'sans-serif', fontSize: 24,
     } as any)
-    settingsBtn.x = 8; settingsBtn.y = 68
+    settingsBtn.x = 6; settingsBtn.y = 64
     this.hudLayer.addChild(settingsBtn)
-    this._settingsHitArea = { x: 4, y: 64, w: 28, h: 28 }
+    this._settingsHitArea = { x: 4, y: 60, w: 34, h: 34 }
     this._settingsCallback = () => { this._showSettingsPopup() }
 
     // TODO: 氧气系统暂不上线

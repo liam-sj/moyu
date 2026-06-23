@@ -473,6 +473,42 @@ export class Board {
     this._emitBoardInit()
   }
 
+  /** 章鱼墨水: randomly swap 2 cards' positions on the board */
+  swapTwoCards(): void {
+    const cards: BoardCard[] = []
+    const positions: Array<{ l: number; r: number; c: number }> = []
+    for (let l = 0; l < this.grid.length; l++)
+      for (let r = 0; r < this.grid[l].length; r++)
+        for (let c = 0; c < this.grid[l][r].length; c++) {
+          const card = this.grid[l][r][c]
+          if (card && !card.isRemoved) {
+            cards.push(card)
+            positions.push({ l, r, c })
+          }
+        }
+    if (cards.length < 2) return
+
+    // Pick 2 distinct random cards
+    const i = Math.floor(Math.random() * cards.length)
+    let j = Math.floor(Math.random() * cards.length)
+    while (j === i) j = Math.floor(Math.random() * cards.length)
+
+    const ci = cards[i], cj = cards[j]
+    const pi = positions[i], pj = positions[j]
+
+    // Update card grid coordinates
+    ci.layer = pj.l; ci.row = pj.r; ci.col = pj.c
+    cj.layer = pi.l; cj.row = pi.r; cj.col = pi.c
+
+    // Swap in grid
+    this.grid[pi.l][pi.r][pi.c] = cj
+    this.grid[pj.l][pj.r][pj.c] = ci
+
+    this._updateCoveredState()
+    this._emitBoardChanged()
+    this._emitBoardInit()
+  }
+
   hasCards(): boolean {
     for (let l = 0; l < this.grid.length; l++)
       for (let r = 0; r < this.grid[l].length; r++)

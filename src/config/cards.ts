@@ -25,14 +25,14 @@ export const FUNC_TYPE = {
   DUAL: 'dual',
 } as const
 
-// Func cards temporarily hidden (funcCardCount: 0 in levels), kept for future use
 export const FUNC_CARDS: FuncCardConfig[] = [
+  // 减益 — 负面效果
   { id: 'shark',      icon: '🦈', name: '鲨鱼来袭', type: 'negative',
     effect: 'boss_patrol', revealIcon: '🦈', revealName: '鲨鱼来袭', weight: 50 },
-  { id: 'jellyfish',  icon: '🪼', name: '水母电网', type: 'negative',
-    effect: 'slot_limit_down', revealIcon: '🪼', revealName: '水母电网', weight: 35 },
-  { id: 'dragon',     icon: '🐉', name: '神龙祝福', type: 'positive',
-    effect: 'add_steps_3', revealIcon: '🐉', revealName: '神龙祝福', weight: 10 },
-  { id: 'pearl',      icon: '💎', name: '万能珍珠', type: 'positive',
-    effect: 'wild_card', revealIcon: '💎', revealName: '万能珍珠', weight: 15 },
+  // 增益 — 正面效果
+  { id: 'pearl',      icon: '🦪', name: '万能珍珠', type: 'positive',
+    effect: 'wild_card', revealIcon: '🦪', revealName: '万能珍珠', weight: 20 },
+  // 干扰 — 扰乱效果
+  { id: 'octopus',    icon: '🐙', name: '章鱼墨水', type: 'dual',
+    effect: 'swap_board_cards', revealIcon: '🐙', revealName: '章鱼墨水', weight: 20 },
 ]

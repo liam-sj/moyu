@@ -47,7 +47,7 @@ app.stage.scale.set(dpr, dpr)
 import { loadCardAtlas } from './views/CardView'
 loadCardAtlas()
 import { loadFishAtlas } from './views/FishView'
-loadFishAtlas('assets/new-fishs.png')
+loadFishAtlas('assets/fishs.png')
 
 // ── 场景管理 ──
 import { SceneManager } from './engine/SceneManager'

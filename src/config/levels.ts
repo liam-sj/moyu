@@ -13,7 +13,7 @@ export const LEVELS: Record<string, LevelConfig> = {
     gridCols: 4,
     totalCards: 12,
     steps: 99,
-    slotLimit: 10,
+    slotLimit: 7,
     layerCards: [12],
     gapRatio: 0,
   },
@@ -21,9 +21,10 @@ export const LEVELS: Record<string, LevelConfig> = {
   level2: {
     id: 'level2',
     name: '第二关·深渊',
-    normalCardTypes: 8,         // 12种鱼里随机8种
-    funcCardCount: 0,
-    funcTypes: [],
+    normalCardTypes: 7,         // 12种鱼里随机7种（留空间给功能卡）
+    funcCardCount: 9,           // 9张功能卡（3种×各3张）
+    funcTypes: ['shark', 'pearl', 'octopus'],
+    funcRatio: { negative: 1, positive: 1, dual: 1 },
     layers: 9,
     gridRows: 6,
     gridCols: 6,

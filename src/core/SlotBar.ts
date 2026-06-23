@@ -75,7 +75,7 @@ export class SlotBar {
       const idx = i
       allSlots.push({ slot: this.holdingSlots[i], clear: () => { this.holdingSlots[idx] = null } })
     }
-    for (let i = 0; i < this.maxSlots; i++) {
+    for (let i = 0; i < this.slots.length; i++) {
       const idx = i
       allSlots.push({ slot: this.slots[i], clear: () => { this.slots[idx] = null } })
     }
@@ -160,7 +160,45 @@ export class SlotBar {
       this._checkMatch(card.cardId)
       return true
     }
-    if (targetIdx === -1) { log(TAG, 'Slot full'); return false }
+    // All slots full — check if this card would complete a match (allow overflow)
+    if (targetIdx === -1) {
+      const counts: Record<string, number> = {}
+      let wildCount = 0
+      for (let i = 0; i < this.maxSlots; i++) {
+        if (!this.slots[i]) continue
+        if (this.slots[i]!.type === 'event' && (this.slots[i]!.config as any).effect === 'wild_card' && this.slots[i]!.isRevealed)
+          wildCount++
+        else
+          counts[this.slots[i]!.cardId] = (counts[this.slots[i]!.cardId] || 0) + 1
+      }
+      if (this.bonusSlot) {
+        if (this.bonusSlot.type === 'event' && (this.bonusSlot.config as any).effect === 'wild_card' && this.bonusSlot.isRevealed)
+          wildCount++
+        else
+          counts[this.bonusSlot.cardId] = (counts[this.bonusSlot.cardId] || 0) + 1
+      }
+      for (const h of this.holdingSlots) {
+        if (!h) continue
+        if (h.type === 'event' && (h.config as any).effect === 'wild_card' && h.isRevealed)
+          wildCount++
+        else
+          counts[h.cardId] = (counts[h.cardId] || 0) + 1
+      }
+      // Card can match with 2 of same type, or 1 of same + 1 wild, or 2 wilds
+      if ((counts[card.cardId] || 0) + 1 >= 3
+        || (counts[card.cardId] || 0) + 1 + wildCount >= 3
+        || wildCount >= 2) {
+        // Completes a match — temporarily push into overflow, elimination will compact
+        this.slots.push({
+          uid: card.uid, type: card.type, config: card.config,
+          cardId: card.cardId, icon: card.icon, name: card.name, isRevealed: card.isRevealed,
+        })
+        this.bus.emit('slotChanged', {})
+        this._checkMatch(card.cardId)
+        return true
+      }
+      log(TAG, 'Slot full'); return false
+    }
 
     this.slots[targetIdx] = {
       uid: card.uid,
@@ -281,7 +319,7 @@ export class SlotBar {
     }
   }
 
-  /** Check if holding area + slots have 3-of-a-kind matches */
+  /** Check if holding area + slots have 3-of-a-kind matches (including wild cards) */
   private _checkHoldingMatch(): void {
     const all: Array<{ slot: SlotCard | null; clear: () => void }> = []
     for (let i = 0; i < 3; i++) {
@@ -296,18 +334,26 @@ export class SlotBar {
       all.push({ slot: this.bonusSlot, clear: () => { this.bonusSlot = null } })
     }
 
-    // Group by cardId
+    // Separate wild cards from normal cards
     const groups: Record<string, Array<{ clear: () => void }>> = {}
+    const wilds: Array<{ clear: () => void }> = []
     for (const s of all) {
       if (!s.slot) continue
-      const key = s.slot.cardId
-      if (!groups[key]) groups[key] = []
-      groups[key].push(s)
+      if (s.slot.type === 'event' && (s.slot.config as any).effect === 'wild_card' && s.slot.isRevealed) {
+        wilds.push(s)
+      } else {
+        const key = s.slot.cardId
+        if (!groups[key]) groups[key] = []
+        groups[key].push(s)
+      }
     }
 
+    // Check each card type group: can 2+ of same type + wilds reach 3?
     for (const key in groups) {
-      if (groups[key].length >= 3) {
-        const toClear = groups[key].slice(0, 3)
+      const total = groups[key].length + wilds.length
+      if (total >= 3) {
+        const needed = 3 - groups[key].length
+        const toClear = groups[key].slice(0, 3).concat(wilds.slice(0, Math.max(0, needed)))
         const uids: string[] = []
         for (const s of all) {
           if (toClear.includes(s) && s.slot) {
@@ -321,6 +367,20 @@ export class SlotBar {
         break
       }
     }
+
+    // Also check: 3 wild cards match together
+    if (wilds.length >= 3) {
+      const toClear = wilds.slice(0, 3)
+      const uids: string[] = []
+      for (const s of all) {
+        if (toClear.includes(s) && s.slot) uids.push(s.slot.uid)
+      }
+      for (const c of toClear) c.clear()
+      this.happiness += 10
+      this.bus.emit<EliminatedEvent>('eliminated', { uids, happiness: this.happiness, count: 3 })
+      this._compact()
+    }
+
     this.bus.emit('slotChanged', {})
   }
 

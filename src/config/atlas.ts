@@ -38,4 +38,4 @@ export function atlasKey(cardId: string, isEvent: boolean, isRevealed: boolean):
   return cardId
 }
 
-export const ATLAS_PATH = 'assets/new-fishs.png'
+export const ATLAS_PATH = 'assets/fishs.png'
