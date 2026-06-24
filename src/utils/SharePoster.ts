@@ -1,4 +1,5 @@
-import { getCachedPond, getPondById } from '../config/ponds'
+import { getPondById } from '../config/ponds'
+import { getCachedPond } from '../config/waters'
 
 export function generatePoster(): void {
   const cached = getCachedPond()

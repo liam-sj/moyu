@@ -132,3 +132,19 @@ const ALL_FISH_IDS = Object.keys(FISH_TYPES)
 export function getRandomFishId(): string {
   return ALL_FISH_IDS[Math.floor(Math.random() * ALL_FISH_IDS.length)]
 }
+
+// Pond/water cache (for backward compatibility during transition)
+const POND_CACHE_KEY = 'fish_pond_cache'
+
+export interface PlayerPondCache {
+  pondId: string; fishId: string; joinDate: string
+  todayContribution: number; switchCount: number
+}
+
+export function getCachedPond(): PlayerPondCache | null {
+  try { return wx.getStorageSync(POND_CACHE_KEY) || null } catch { return null }
+}
+
+export function setCachedPond(data: PlayerPondCache): void {
+  wx.setStorageSync(POND_CACHE_KEY, data)
+}

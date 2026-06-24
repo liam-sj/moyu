@@ -4,7 +4,7 @@ import type { SkillConfig, GameResult, BoardCard, FuncCardConfig } from '../../c
 import { CardView } from '../../views/CardView'
 import { getFishTex } from '../../views/FishView'
 import { PopupView } from '../../views/PopupView'
-import { setCachedPond } from '../../config/ponds'
+import { setCachedPond } from '../../config/waters'
 import { clearRankingCache, clearDetailCache } from '../../config/rankingCache'
 import { AudioManager } from '../../utils/AudioManager'
 import { detectProvince, getWaterByProvince, DEFAULT_WATER, setCachedProvince } from '../../config/waters'
