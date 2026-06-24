@@ -1,0 +1,9 @@
+{
+  "name": "getProvince",
+  "version": "1.0.0",
+  "description": "GPS coordinates → province name via Tencent Map API",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}
