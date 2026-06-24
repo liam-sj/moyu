@@ -4,20 +4,13 @@ import type { SkillConfig, GameResult, BoardCard, FuncCardConfig } from '../../c
 import { CardView } from '../../views/CardView'
 import { getFishTex } from '../../views/FishView'
 import { PopupView } from '../../views/PopupView'
-import { getCachedPond, setCachedPond } from '../../config/ponds'
-import { getCachedRanking, clearRankingCache, clearDetailCache } from '../../config/rankingCache'
+import { setCachedPond } from '../../config/ponds'
+import { clearRankingCache, clearDetailCache } from '../../config/rankingCache'
 import { AudioManager } from '../../utils/AudioManager'
+import { detectProvince, getWaterByProvince, DEFAULT_WATER, setCachedProvince } from '../../config/waters'
 import logger from '../../utils/Logger'
 import type { EventBus } from '../../engine/EventBus'
 import type { SceneManager } from '../../engine/SceneManager'
-
-function hexToInt(hex: string): number {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (result) {
-    return (parseInt(result[1], 16) << 16) | (parseInt(result[2], 16) << 8) | parseInt(result[3], 16)
-  }
-  return 0x95A5A6
-}
 
 export interface OverlayHost {
   container: PIXI.Container
@@ -494,189 +487,102 @@ export class GameOverlayView {
     }
   }
 
-  /** Show fish result — big sprite, name, tap to continue */
+  /** Combined result: show fish + auto-detect province → auto-join water body */
   showFishResult(fishId: string, fishInfo: { name: string; emoji: string }): void {
     const w = this.host.screenW; const h = this.host.screenH
-
     const overlay = new PIXI.Graphics()
-    overlay.beginFill(0x0A1628, 0.94); overlay.drawRect(0, 0, w, h); overlay.endFill()
+    overlay.beginFill(0x0A1628, 0.95); overlay.drawRect(0, 0, w, h); overlay.endFill()
     this.host.container.addChild(overlay)
-
-    const congrats = new PIXI.Text('🎉 恭喜通关！', {
-      fontFamily: 'sans-serif', fontSize: 28, fontWeight: 'bold', fill: '#F1C40F',
-    } as any)
-    congrats.anchor.set(0.5); congrats.x = w / 2; congrats.y = h * 0.10
-    this.host.container.addChild(congrats)
-
-    const fishSize = 140
-    const tex = getFishTex(fishId, 0)
-    const fishCtn = new PIXI.Container()
-    fishCtn.x = w / 2; fishCtn.y = h * 0.32
-    if (tex) {
-      const sprite = new PIXI.Sprite(tex)
-      sprite.anchor.set(0.5)
-      sprite.height = fishSize
-      sprite.width = tex.width * (fishSize / tex.height)
-      fishCtn.addChild(sprite)
-    } else {
-      const fallback = new PIXI.Text(fishInfo.emoji, { fontFamily: 'sans-serif', fontSize: 80 } as any)
-      fallback.anchor.set(0.5)
-      fishCtn.addChild(fallback)
-    }
-    this.host.container.addChild(fishCtn)
-
-    const fishNameTxt = new PIXI.Text(`你摸到了一条 ${fishInfo.name}！`, {
-      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF',
-    } as any)
-    fishNameTxt.anchor.set(0.5); fishNameTxt.x = w / 2; fishNameTxt.y = h * 0.52
-    this.host.container.addChild(fishNameTxt)
-
-    const hint = new PIXI.Text('👆 点击任意位置选择鱼塘', {
-      fontFamily: 'sans-serif', fontSize: 14, fill: '#6B7B8D',
-    } as any)
-    hint.anchor.set(0.5); hint.x = w / 2; hint.y = h * 0.62
-    this.host.container.addChild(hint)
-
-    this.host._playFishSparkles(w / 2, h * 0.32)
-
-    const self = this
-    this.host._resultArea = [{
-      rect: { x: 0, y: 0, w, h },
-      cb: () => {
-        this.host._resultArea = []
-        self.showPondPicker(fishId, fishInfo)
-      }
-    }]
-  }
-
-  /** Pond picker — choose which pond to join, ranked by real cloud data */
-  showPondPicker(fishId: string, fishInfo: { name: string; emoji: string }): void {
-    const w = this.host.screenW; const h = this.host.screenH
-
-    const cardX = 12; const cardY = Math.floor(h * 0.06); const cardW = w - 24; const cardH = Math.floor(h * 0.88)
-    const card = new PIXI.Graphics()
-    card.beginFill(0x0D1B2A, 0.88)
-    card.drawRoundedRect(cardX, cardY, cardW, cardH, 16)
-    card.endFill()
-    card.lineStyle(1.5, 0xFFFFFF, 0.15)
-    card.drawRoundedRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1, 16)
-    this.host.container.addChild(card)
 
     const cx = w / 2
 
-    const fishTex = getFishTex(fishId, 0)
-    if (fishTex) {
-      const fishSprite = new PIXI.Sprite(fishTex)
-      fishSprite.anchor.set(0.5)
-      fishSprite.width = 44; fishSprite.height = 44
-      fishSprite.x = cx; fishSprite.y = cardY + 36
-      this.host.container.addChild(fishSprite)
+    // Title
+    const congrats = new PIXI.Text('🎉 恭喜通关！', {
+      fontFamily: 'sans-serif', fontSize: 24, fontWeight: 'bold', fill: '#F1C40F',
+    } as any)
+    congrats.anchor.set(0.5); congrats.x = cx; congrats.y = Math.floor(h * 0.08)
+    this.host.container.addChild(congrats)
+
+    // Fish image
+    const fishCY = Math.floor(h * 0.22)
+    const tex = getFishTex(fishId, 0)
+    if (tex) {
+      const sprite = new PIXI.Sprite(tex)
+      sprite.anchor.set(0.5)
+      sprite.height = 90; sprite.width = tex.width * (90 / tex.height)
+      sprite.x = cx; sprite.y = fishCY
+      this.host.container.addChild(sprite)
     } else {
-      const fallback = new PIXI.Text(fishInfo.emoji, { fontFamily: 'sans-serif', fontSize: 36 } as any)
-      fallback.anchor.set(0.5); fallback.x = cx; fallback.y = cardY + 36
-      this.host.container.addChild(fallback)
+      const fb = new PIXI.Text(fishInfo.emoji, { fontFamily: 'sans-serif', fontSize: 56 } as any)
+      fb.anchor.set(0.5); fb.x = cx; fb.y = fishCY
+      this.host.container.addChild(fb)
     }
 
-    const fishNameTxt = new PIXI.Text(`你摸到了 ${fishInfo.name}！`, {
-      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold', fill: '#F1C40F',
+    // Fish name
+    const fishName = new PIXI.Text(`你摸到了一条 ${fishInfo.name}！`, {
+      fontFamily: 'sans-serif', fontSize: 18, fontWeight: 'bold', fill: '#FFFFFF',
     } as any)
-    fishNameTxt.anchor.set(0.5); fishNameTxt.x = cx; fishNameTxt.y = cardY + 72
-    this.host.container.addChild(fishNameTxt)
+    fishName.anchor.set(0.5); fishName.x = cx; fishName.y = fishCY + 56
+    this.host.container.addChild(fishName)
 
-    const title = new PIXI.Text('选择鱼塘加入', {
-      fontFamily: 'sans-serif', fontSize: 13, fill: '#6B7B8D',
+    // Province detection indicator
+    const detectingY = fishCY + 88
+    const detecting = new PIXI.Text('📍 正在定位你的水域...', {
+      fontFamily: 'sans-serif', fontSize: 13, fill: '#7FB3D8',
     } as any)
-    title.anchor.set(0.5); title.x = cx; title.y = cardY + 96
-    this.host.container.addChild(title)
+    detecting.anchor.set(0.5); detecting.x = cx; detecting.y = detectingY
+    this.host.container.addChild(detecting)
 
+    // Water info placeholder (will be updated after detection)
+    const waterInfoY = fishCY + 118
+    const waterInfo = new PIXI.Text('', {
+      fontFamily: 'sans-serif', fontSize: 15, fill: '#2ECC71', fontWeight: 'bold',
+    } as any)
+    waterInfo.anchor.set(0.5); waterInfo.x = cx; waterInfo.y = waterInfoY
+    this.host.container.addChild(waterInfo)
+
+    this.host._playFishSparkles(cx, fishCY)
+
+    // Run detection
     const host = this.host
-    const listY = cardY + 116; const listH = cardY + cardH - listY - 12
-    this.host._joiningPond = false
-
-    const pondNames: Record<string, string> = {
-      moyutang:'摸鱼塘', xianyutang:'咸鱼塘', jinlitang:'锦鲤塘', hetuntang:'河豚塘',
-      moyutang2:'墨鱼塘', haimatang:'海马塘', feiyutang:'飞鱼塘', zhangyutang:'章鱼塘',
-      bimuyutang:'比目鱼塘', pangxietang:'螃蟹塘', jianyutang:'剑鱼塘', haituntang:'海豚塘'
-    }
-    const allIds = Object.keys(pondNames)
-    const medals = ['🥇','🥈','🥉']
-
     ;(async () => {
-      let ranked: Array<{ pondId: string; rank: number; dailyClears: number }> = []
-      try {
-        let d = getCachedRanking()
-        if (!d) {
-          const res = await wx.cloud.callFunction({ name: 'getPondRanking', data: {} })
-          d = (res as any).result
-        }
-        if (d?.ok && d.fatPondRank) {
-          ranked = d.fatPondRank.map((r: any) => ({ pondId: r.pondId, rank: r.rank, dailyClears: r.dailyClears }))
-          for (const id of allIds) {
-            if (!ranked.find(r => r.pondId === id)) ranked.push({ pondId: id, rank: ranked.length + 1, dailyClears: 0 })
-          }
-        }
-      } catch {}
-      if (ranked.length === 0) {
-        ranked = allIds.map((id, i) => ({ pondId: id, rank: i + 1, dailyClears: 0 }))
+      const province = await detectProvince()
+      const water = province ? getWaterByProvince(province) : undefined
+      const finalWater = water || DEFAULT_WATER
+
+      // Remove detecting text
+      detecting.text = ''
+      waterInfo.text = `${finalWater.emoji} 已加入「${finalWater.waterName}」`
+
+      if (!water) {
+        waterInfo.text = `${finalWater.emoji} 漂流至「${finalWater.waterName}」`
+        waterInfo.style.fill = '#F0A860'
       }
 
-      const rowH = 36; const gap = 4
-      for (let i = 0; i < ranked.length; i++) {
-        const r = ranked[i]
-        const ry = listY + i * (rowH + gap)
-        if (ry + rowH > listY + listH) break
-        const pondName = pondNames[r.pondId] || r.pondId
+      // Auto-join via cloud
+      this._joinPondAsync(fishId, fishInfo, finalWater.waterId, finalWater.waterName)
 
-        const rowBg = new PIXI.Graphics()
-        const isTop3 = r.rank <= 3
-        rowBg.beginFill(isTop3 ? 0x1A2A3A : 0x152535, isTop3 ? 0.85 : 0.65)
-        rowBg.drawRoundedRect(cardX + 8, ry, cardW - 16, rowH, 8)
-        rowBg.endFill()
-        if (isTop3) {
-          rowBg.lineStyle(1, 0xF1C40F, 0.35)
-          rowBg.drawRoundedRect(cardX + 8.5, ry + 0.5, cardW - 17, rowH - 1, 8)
-        }
-        host.container.addChild(rowBg)
-
-        const rankStr = r.rank <= 3 ? medals[r.rank - 1] : `${r.rank}`
-        const rankTxt = new PIXI.Text(rankStr, {
-          fontFamily: 'sans-serif', fontSize: r.rank <= 3 ? 18 : 12, fontWeight: 'bold',
-          fill: r.rank <= 3 ? '#F1C40F' : '#7F8C8D',
+      // Tap to return home after 1.5s
+      setTimeout(() => {
+        const hint = new PIXI.Text('👆 点击任意位置返回', {
+          fontFamily: 'sans-serif', fontSize: 13, fill: '#6B7B8D',
         } as any)
-        rankTxt.anchor.set(0.5); rankTxt.x = cardX + 28; rankTxt.y = ry + rowH / 2
-        host.container.addChild(rankTxt)
+        hint.anchor.set(0.5); hint.x = cx; hint.y = waterInfoY + 40
+        this.host.container.addChild(hint)
 
-        const nameTxt = new PIXI.Text(pondName, {
-          fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold',
-          fill: isTop3 ? '#FFFFFF' : '#A0B0C0',
-        } as any)
-        nameTxt.x = cardX + 50; nameTxt.y = ry + 4
-        host.container.addChild(nameTxt)
-
-        const countTxt = new PIXI.Text(`🐟${r.dailyClears}`, {
-          fontFamily: 'sans-serif', fontSize: 11, fill: '#7FB3D8',
-        } as any)
-        countTxt.x = cardX + 50; countTxt.y = ry + rowH - 16
-        host.container.addChild(countTxt)
-
-        host._pondPickerAreas.push({
-          rect: { x: cardX + 8, y: ry, w: cardW - 16, h: rowH },
+        host._resultArea = [{
+          rect: { x: 0, y: 0, w, h },
           cb: () => {
-            if (host._joiningPond) return
-            host._joiningPond = true
-            setCachedPond({ pondId: r.pondId, fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
-            this._joinPondAsync(fishId, fishInfo, r.pondId, pondName)
-            host._pondPickerAreas = []
+            host._resultArea = []
             const { MenuScene } = require('../MenuScene')
             host.manager.replace(new MenuScene())
           }
-        })
-      }
+        }]
+      }, 1500)
     })()
   }
 
-  /** Fire-and-forget: collect avatar, call cloud, emit result */
-  private _joinPondAsync(fishId: string, fishInfo: { name: string; emoji: string }, pondId: string, pondName: string): void {
+  private _joinPondAsync(fishId: string, fishInfo: { name: string; emoji: string }, waterId: string, waterName: string): void {
     const bus = this.host.bus
     ;(async () => {
       let avatarUrl = ''
@@ -696,24 +602,22 @@ export class GameOverlayView {
       try {
         const conRes = await wx.cloud.callFunction({
           name: 'selectAndContribute',
-          data: { fishId, pondId, avatarUrl, nickName, checkAchievements: true }
+          data: { fishId, pondId: waterId, avatarUrl, nickName, checkAchievements: true }
         })
         const r = (conRes as any).result
         if (r?.ok) {
           clearRankingCache()
           clearDetailCache()
-          bus.emit('pondJoined', { ok: true, pondName, fishName: fishInfo.name, fishEmoji: fishInfo.emoji })
+          setCachedPond({ pondId: waterId, fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
+          bus.emit('pondJoined', { ok: true, pondName: waterName, fishName: fishInfo.name, fishEmoji: fishInfo.emoji })
           if (r.newAchievements?.length > 0) {
             for (const ach of r.newAchievements) {
               wx.showToast({ title: `${ach.emoji} 获得称号：${ach.name}！`, icon: 'none', duration: 3000 })
             }
           }
-        } else {
-          bus.emit('pondJoined', { ok: false, reason: r?.reason || 'unknown' })
         }
       } catch (e: any) {
-        logger.warn('GameOverlayView', 'joinPondAsync failed ' + (e?.errMsg || String(e)))
-        bus.emit('pondJoined', { ok: false, reason: e?.errMsg || 'network_error' })
+        logger.warn('GameOverlayView', 'joinWaterAsync failed ' + (e?.errMsg || String(e)))
       }
     })()
   }
