@@ -2,7 +2,6 @@ import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { GameLogic } from '../core/GameLogic'
 import { CardView, createCardImage } from '../views/CardView'
-import { Button } from '../views/Button'
 import { getLevelConfig } from '../config/levels'
 import type {
   BoardCard, GameResult, SkillConfig,
@@ -16,6 +15,7 @@ import { AudioManager } from '../utils/AudioManager'
 import { GameOverlayView } from './overlays/GameOverlayView'
 import { GameAnimations } from '../views/GameAnimations'
 import { GameSlotView } from '../views/GameSlotView'
+import { createIconButton } from '../views/IconButtons'
 
 export class GameScene extends Scene {
   private logic!: GameLogic
@@ -146,21 +146,20 @@ export class GameScene extends Scene {
     const btnGap = 8
     const btnW = Math.floor((totalBtnW - btnGap * 2) / 3)
 
+    const iconSize = Math.min(btnH - 4, 28)
     let bx = 8
-    const undoBtn = new Button(bx, btnY, btnW, btnH, '↩️ 回游', {
-      bgColor: '#2980B9', fontSize: 15, radius: 8, frosted: true,
-    })
-    this.container.addChild(undoBtn.container)
-    this._bottomBtnContainers.push(undoBtn.container)
-    this._actionHitAreas.push({ rect: undoBtn.hitArea, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    // Undo (icon index 0)
+    const undoIcon = createIconButton(0, bx + (btnW - iconSize) / 2, btnY + (btnH - iconSize) / 2, iconSize)
+    this.container.addChild(undoIcon)
+    this._bottomBtnContainers.push(undoIcon)
+    this._actionHitAreas.push({ rect: { x: bx, y: btnY, w: btnW, h: btnH }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
     bx += btnW + btnGap
-    const shuffleBtn = new Button(bx, btnY, btnW, btnH, '🌊 换潮', {
-      bgColor: '#16A085', fontSize: 15, radius: 8, frosted: true,
-    })
-    this.container.addChild(shuffleBtn.container)
-    this._bottomBtnContainers.push(shuffleBtn.container)
-    this._actionHitAreas.push({ rect: shuffleBtn.hitArea, cb: () => {
+    // Shuffle (icon index 1)
+    const shuffleIcon = createIconButton(1, bx + (btnW - iconSize) / 2, btnY + (btnH - iconSize) / 2, iconSize)
+    this.container.addChild(shuffleIcon)
+    this._bottomBtnContainers.push(shuffleIcon)
+    this._actionHitAreas.push({ rect: { x: bx, y: btnY, w: btnW, h: btnH }, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos
@@ -328,16 +327,17 @@ export class GameScene extends Scene {
     const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 2) / 3)
     let bx2 = 8
 
-    const undoBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '↩️ 回游', { bgColor: '#2980B9', fontSize: 15, radius: 8, frosted: true })
-    this.container.addChild(undoBtn2.container)
-    this._bottomBtnContainers.push(undoBtn2.container)
-    this._actionHitAreas.push({ rect: undoBtn2.hitArea, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    const iconSize2 = Math.min(btnH2 - 4, 28)
+    const uIcon2 = createIconButton(0, bx2 + (btnW2 - iconSize2) / 2, btnY2 + (btnH2 - iconSize2) / 2, iconSize2)
+    this.container.addChild(uIcon2)
+    this._bottomBtnContainers.push(uIcon2)
+    this._actionHitAreas.push({ rect: { x: bx2, y: btnY2, w: btnW2, h: btnH2 }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
     bx2 += btnW2 + btnGap2
-    const shuffleBtn2 = new Button(bx2, btnY2, btnW2, btnH2, '🌊 换潮', { bgColor: '#16A085', fontSize: 15, radius: 8, frosted: true })
-    this.container.addChild(shuffleBtn2.container)
-    this._bottomBtnContainers.push(shuffleBtn2.container)
-    this._actionHitAreas.push({ rect: shuffleBtn2.hitArea, cb: () => {
+    const sIcon2 = createIconButton(1, bx2 + (btnW2 - iconSize2) / 2, btnY2 + (btnH2 - iconSize2) / 2, iconSize2)
+    this.container.addChild(sIcon2)
+    this._bottomBtnContainers.push(sIcon2)
+    this._actionHitAreas.push({ rect: { x: bx2, y: btnY2, w: btnW2, h: btnH2 }, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos

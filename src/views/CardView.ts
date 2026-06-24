@@ -234,23 +234,27 @@ export class CardView {
     const colorStr = getCardColor(card)
     const colorInt = hexToInt(colorStr)
 
-    // ── Card body (transparent) ──
+    // ── Card body ──
     if (covered) {
-      // Covered: subtle dark overlay on fish image
+      // Covered: dark overlay with subtle border
       const overlay = new PIXI.Graphics()
-      overlay.beginFill(0x1A2A30, 0.78)
+      overlay.beginFill(0x111820, 0.82)
       overlay.drawRoundedRect(0, 0, w, h, 8)
       overlay.endFill()
       this.container.addChild(overlay)
       const border = new PIXI.Graphics()
-      border.lineStyle(1.5, 0x889088, 0.4)
+      border.lineStyle(1.5, 0x667788, 0.5)
       border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
       this.container.addChild(border)
     } else {
-      // Uncovered: fully transparent — just border + fish image
-      // Outer border with rarity color
+      // Uncovered: subtle fill + bold border for contrast against bright bg
+      const bg = new PIXI.Graphics()
+      bg.beginFill(0x000000, 0.12)
+      bg.drawRoundedRect(2, 2, w - 4, h - 4, 6)
+      bg.endFill()
+      this.container.addChild(bg)
       const border = new PIXI.Graphics()
-      border.lineStyle(2, colorInt, 0.6)
+      border.lineStyle(2.5, colorInt, 0.75)
       border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
       this.container.addChild(border)
     }

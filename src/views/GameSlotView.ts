@@ -3,6 +3,7 @@ import type { GameLogic } from '../core/GameLogic'
 import { CardView, createCardImage } from './CardView'
 import { getCardColor } from '../core/Card'
 import { getLevelConfig } from '../config/levels'
+import { getBtnIcon } from './IconButtons'
 
 function hexToInt(hex: string): number {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -249,12 +250,14 @@ export class GameSlotView {
     levelTxt.x = 10; levelTxt.y = 14
     this.hudLayer.addChild(levelTxt)
 
-    // Settings button
-    const settingsBtn = new PIXI.Text('⚙️', {
-      fontFamily: 'sans-serif', fontSize: 24,
-    } as any)
-    settingsBtn.x = 6; settingsBtn.y = 64
-    this.hudLayer.addChild(settingsBtn)
+    // Settings button (icon index 3)
+    const sTex = getBtnIcon(3)
+    if (sTex) {
+      const sSprite = new PIXI.Sprite(sTex)
+      sSprite.width = 28; sSprite.height = 28
+      sSprite.x = 6; sSprite.y = 64
+      this.hudLayer.addChild(sSprite)
+    }
     this.settingsHitArea = { x: 4, y: 60, w: 34, h: 34 }
 
     // Happiness
@@ -285,21 +288,22 @@ export class GameSlotView {
 
     const hasCharges = charges > 0
     const ctn = new PIXI.Container()
-    const bg = new PIXI.Graphics()
-    bg.beginFill(hasCharges ? 0xE67E22 : 0x7A6B5D, 0.85)
-    bg.drawRoundedRect(x, y, w, h, 8)
-    bg.endFill()
-    if (hasCharges) {
-      bg.lineStyle(1.5, 0xF39C12, 0.6)
-      bg.drawRoundedRect(x, y, w, h, 8)
+    // Icon sprite (index 2 = skill)
+    const iconSize = Math.min(h - 4, 26)
+    const sTex = getBtnIcon(2)
+    if (sTex) {
+      const sprite = new PIXI.Sprite(sTex)
+      sprite.width = iconSize; sprite.height = iconSize
+      sprite.x = x + 4; sprite.y = y + (h - iconSize) / 2
+      if (!hasCharges) sprite.tint = 0x8899AA
+      ctn.addChild(sprite)
     }
-    ctn.addChild(bg)
-
-    const txt = new PIXI.Text('🃏 ' + charges, {
-      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold',
-      fill: hasCharges ? '#FFFFFF' : '#8899AA',
+    // Charge count
+    const txt = new PIXI.Text(String(charges), {
+      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
+      fill: hasCharges ? '#F39C12' : '#8899AA',
     } as any)
-    txt.anchor.set(0.5); txt.x = x + w / 2; txt.y = y + h / 2
+    txt.anchor.set(0.5); txt.x = x + w * 0.7; txt.y = y + h / 2
     ctn.addChild(txt)
 
     this.container.addChild(ctn)

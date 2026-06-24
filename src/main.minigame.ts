@@ -48,6 +48,8 @@ import { loadCardAtlas } from './views/CardView'
 loadCardAtlas()
 import { loadFishAtlas } from './views/FishView'
 loadFishAtlas('assets/fishs.png')
+import { loadBtnIcons } from './views/IconButtons'
+loadBtnIcons()
 
 // ── 场景管理 ──
 import { SceneManager } from './engine/SceneManager'

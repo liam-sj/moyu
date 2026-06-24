@@ -261,7 +261,7 @@ export class FishView {
       self._avatarSprite = new PIXI.Sprite(tex)
       self._avatarSprite.width = avatarSize; self._avatarSprite.height = avatarSize
       self._avatarSprite.anchor.set(0.5)
-      self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.5 - 6
+      self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.42
       self.container.addChild(self._avatarSprite)
     }
 

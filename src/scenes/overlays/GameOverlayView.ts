@@ -551,45 +551,98 @@ export class GameOverlayView {
       const water = province ? getWaterByProvince(province) : DEFAULT_WATER
 
       detecting.text = ''
-      waterInfo.text = `${water.emoji} 已加入「${water.waterName}」`
+      waterInfo.text = `${water.emoji} 已定位「${water.waterName}」`
 
-      self._joinPondAsync(fishId, fishInfo, water.waterId, water.waterName)
+      // "Join water" button — lower part of screen for easy thumb reach
+      const btnW = 200; const btnH = 44
+      const btnX = (w - btnW) / 2; const btnY = Math.floor(h * 0.7)
+      const btnBg = new PIXI.Graphics()
+      btnBg.beginFill(0xE67E22, 0.85)
+      btnBg.drawRoundedRect(btnX, btnY, btnW, btnH, 8)
+      btnBg.endFill()
+      self.host.container.addChild(btnBg)
+      const btnTxt = new PIXI.Text('🐟 加入水域', {
+        fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold', fill: '#FFFFFF',
+      } as any)
+      btnTxt.anchor.set(0.5); btnTxt.x = w / 2; btnTxt.y = btnY + btnH / 2
+      self.host.container.addChild(btnTxt)
 
-      setTimeout(() => {
-        const hint = new PIXI.Text('👆 点击任意位置返回', {
-          fontFamily: 'sans-serif', fontSize: 13, fill: '#6B7B8D',
-        } as any)
-        hint.anchor.set(0.5); hint.x = cx; hint.y = waterInfoY + 40
-        self.host.container.addChild(hint)
-        host._resultArea = [{
-          rect: { x: 0, y: 0, w, h },
-          cb: () => {
-            host._resultArea = []
-            const { MenuScene } = require('../MenuScene')
-            host.manager.replace(new MenuScene())
+      host._pondPickerAreas = [{
+        rect: { x: btnX, y: btnY, w: btnW, h: btnH },
+        cb: async () => {
+          host._pondPickerAreas = []
+          let avatarUrl = ''; let nickName = ''
+          // 1. Check local cache first
+          try {
+            const cached = wx.getStorageSync('user_avatar')
+            if (cached) { avatarUrl = cached.url || ''; nickName = cached.name || '' }
+          } catch {}
+          // 2. If no cache, try silent or native authorization
+          if (!avatarUrl) {
+            const setting = await new Promise<any>((resolve) => {
+              wx.getSetting({ success: (r: any) => resolve(r), fail: () => resolve(null) })
+            })
+            if (setting?.authSetting?.['scope.userInfo']) {
+              const userRes = await new Promise<any>((resolve) => {
+                wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
+              })
+              avatarUrl = userRes?.userInfo?.avatarUrl || ''
+              nickName = userRes?.userInfo?.nickName || ''
+            } else {
+              const ubtn = wx.createUserInfoButton({
+                type: 'text', text: '点击获取头像昵称',
+                style: {
+                  left: (w - 200) / 2, top: btnY - 50,
+                  width: 200, height: 40, lineHeight: 40,
+                  backgroundColor: '#E67E22', color: '#FFFFFF',
+                  textAlign: 'center', fontSize: 15, borderRadius: 8,
+                }
+              })
+              await new Promise<void>((resolve) => {
+                ubtn.onTap((res: any) => {
+                  if (res.errMsg === 'getUserInfo:ok' && res.userInfo) {
+                    avatarUrl = res.userInfo.avatarUrl || ''
+                    nickName = res.userInfo.nickName || ''
+                  }
+                  ubtn.destroy()
+                  resolve()
+                })
+              })
+            }
+            // 3. Save to cache
+            if (avatarUrl) {
+              try { wx.setStorageSync('user_avatar', { url: avatarUrl, name: nickName }) } catch {}
+            }
           }
-        }]
-      }, 1500)
+          btnTxt.text = '✅ 已加入'
+          btnBg.clear()
+          btnBg.beginFill(0x27AE60, 0.7)
+          btnBg.drawRoundedRect(btnX, btnY, btnW, btnH, 8)
+          btnBg.endFill()
+          self._joinPondAsync(fishId, fishInfo, water.waterId, water.waterName, avatarUrl, nickName)
+          setTimeout(() => {
+            const hint = new PIXI.Text('👆 点击任意位置返回', {
+              fontFamily: 'sans-serif', fontSize: 13, fill: '#6B7B8D',
+            } as any)
+            hint.anchor.set(0.5); hint.x = cx; hint.y = waterInfoY + 65
+            self.host.container.addChild(hint)
+            host._resultArea = [{
+              rect: { x: 0, y: 0, w, h },
+              cb: () => {
+                host._resultArea = []
+                const { MenuScene } = require('../MenuScene')
+                host.manager.replace(new MenuScene())
+              }
+            }]
+          }, 500)
+        }
+      }]
     })()
   }
 
-  private _joinPondAsync(fishId: string, fishInfo: { name: string; emoji: string }, waterId: string, waterName: string): void {
+  private _joinPondAsync(fishId: string, fishInfo: { name: string; emoji: string }, waterId: string, waterName: string, avatarUrl = '', nickName = ''): void {
     const bus = this.host.bus
     ;(async () => {
-      let avatarUrl = ''
-      let nickName = ''
-      try {
-        const userRes = await new Promise<any>((resolve) => {
-          if (typeof wx !== 'undefined') {
-            wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
-          } else { resolve(null) }
-        })
-        if (userRes?.userInfo) {
-          avatarUrl = userRes.userInfo.avatarUrl || ''
-          nickName = userRes.userInfo.nickName || ''
-        }
-      } catch (e) {}
-
       try {
         const conRes = await wx.cloud.callFunction({
           name: 'selectAndContribute',
