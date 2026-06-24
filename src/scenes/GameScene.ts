@@ -10,7 +10,7 @@ import type {
   CardToSlotEvent, BoardChangedEvent,
   EliminatedEvent, SkillTriggeredEvent, GameOverEvent
 } from '../core/types'
-import { getRandomFishId, FISH_TYPES } from '../config/ponds'
+import { getRandomFishId, FISH_TYPES } from '../config/waters'
 import logger from '../utils/Logger'
 import { AudioManager } from '../utils/AudioManager'
 import { GameOverlayView } from './overlays/GameOverlayView'
@@ -110,7 +110,7 @@ export class GameScene extends Scene {
       bg.alpha = 0.65
       this.container.addChildAt(bg, 0)
     }
-    bgImg.src = 'assets/guanqia3.jpg'
+    bgImg.src = 'assets/guanqia4.png'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
@@ -258,7 +258,6 @@ export class GameScene extends Scene {
   }
   private showCardTypeSelection(cardTypes: string[]): void { this.overlayView.showCardTypeSelection(cardTypes) }
   private _showFishResult(fishId: string, fishInfo: { name: string; emoji: string }): void { this.overlayView.showFishResult(fishId, fishInfo) }
-  private _showPondPicker(fishId: string, fishInfo: { name: string; emoji: string }): void { this.overlayView.showPondPicker(fishId, fishInfo) }
 
   // _playFishSparkles delegated to animations (called by GameOverlayView via OverlayHost)
   _playFishSparkles(x: number, y: number): void { this.animations.playFishSparkles(x, y) }
@@ -318,6 +317,8 @@ export class GameScene extends Scene {
     }
     this._bottomBtnContainers = []
     this._actionHitAreas = []
+    this._debugHitRect = null
+    this._debugHitCb = null
 
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
     const btnY2 = slotBarBottom + 8
@@ -530,7 +531,94 @@ export class GameScene extends Scene {
 
   // ── Settings ──
 
-  private _showSettingsPopup(): void { this.overlayView.showSettingsPopup() }
+  private _showSettingsPopup(): void {
+    if (this.levelId === 'level2') {
+      // Build settings with debug button inline
+      this._addDebugSettings()
+    } else {
+      this.overlayView.showSettingsPopup()
+    }
+  }
+
+  private _addDebugSettings(): void {
+    if (this._settingsOverlay) return
+    const self = this
+    const { PopupView } = require('../views/PopupView')
+    const popup = new PopupView(this.screenW, this.screenH, 230, {
+      title: '⚙️ 设置', width: 240, closable: true,
+      onClose: () => { self._settingsOverlay = null; self._settingsAreas = [] }
+    })
+    this._settingsOverlay = popup.container
+    this._settingsAreas = popup.hitAreas
+
+    const cw = popup.cardW - 32
+    const drawRow = (y: number, label: string, value: string, valueColor: string, onClick?: () => void) => {
+      const rowH = 36
+      const bg = new PIXI.Graphics()
+      bg.beginFill(0xFFFFFF, 0.08)
+      bg.drawRoundedRect(0, y, cw, rowH, 8)
+      bg.endFill()
+      popup.content.addChild(bg)
+      const lt = new PIXI.Text(label, { fontFamily: 'sans-serif', fontSize: 15, fill: '#FFFFFF' } as any)
+      lt.x = 12; lt.y = y + (rowH - 15) / 2
+      popup.content.addChild(lt)
+      const vt = new PIXI.Text(value, { fontFamily: 'sans-serif', fontSize: 13, fill: valueColor } as any)
+      vt.anchor.set(1, 0); vt.x = cw - 12; vt.y = y + (rowH - 13) / 2
+      popup.content.addChild(vt)
+      if (onClick) popup.addHitArea(0, y, cw, rowH, onClick)
+      return y + rowH + 4
+    }
+
+    let cy = 0
+    cy = drawRow(cy, '🎵 音乐', this._musicOn ? '🟢 开' : '⚫ 关',
+      this._musicOn ? '#2ECC71' : '#7F8C8D', () => {
+        this._musicOn = !this._musicOn; this._saveSettings()
+        if (this._musicOn) AudioManager.resume(); else AudioManager.pause()
+        this._closeSettingsPopup(); this._addDebugSettings()
+      })
+    cy = drawRow(cy, '📳 震动', this._vibrateOn ? '🟢 开' : '⚫ 关',
+      this._vibrateOn ? '#2ECC71' : '#7F8C8D', () => {
+        this._vibrateOn = !this._vibrateOn; this._saveSettings()
+        this._closeSettingsPopup(); this._addDebugSettings()
+      })
+
+    // Debug: one-click win
+    cy += 8
+    const dbgBg = new PIXI.Graphics()
+    dbgBg.beginFill(0x2ECC71, 0.75)
+    dbgBg.drawRoundedRect(0, cy, cw, 36, 8)
+    dbgBg.endFill()
+    popup.content.addChild(dbgBg)
+    const dbgTxt = new PIXI.Text('🐛 调试通关', { fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    dbgTxt.anchor.set(0.5); dbgTxt.x = cw / 2; dbgTxt.y = cy + 18
+    popup.content.addChild(dbgTxt)
+    cy += 40
+    popup.addHitArea(0, cy - 40, cw, 36, () => {
+      this._closeSettingsPopup()
+      this.logic.skillSystem.destroy()
+      const fid = getRandomFishId()
+      this._showFishResult(fid, FISH_TYPES[fid])
+    })
+
+    // Give up
+    cy += 4
+    const gbBg = new PIXI.Graphics()
+    gbBg.beginFill(0xE74C3C, 0.75)
+    gbBg.drawRoundedRect(0, cy, cw, 38, 8)
+    gbBg.endFill()
+    popup.content.addChild(gbBg)
+    const gbTxt = new PIXI.Text('🚪 放弃挑战', { fontFamily: 'sans-serif', fontSize: 15, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    gbTxt.anchor.set(0.5); gbTxt.x = cw / 2; gbTxt.y = cy + 19
+    popup.content.addChild(gbTxt)
+    popup.addHitArea(0, cy, cw, 38, () => {
+      this._closeSettingsPopup()
+      this.logic.skillSystem.destroy()
+      const { MenuScene } = require('./MenuScene')
+      this.manager.replace(new MenuScene())
+    })
+
+    this.container.addChild(popup.container)
+  }
   _closeSettingsPopup(): void {
     if (this._settingsOverlay) {
       this.container.removeChild(this._settingsOverlay)
