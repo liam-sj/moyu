@@ -219,6 +219,12 @@ export class CardView {
 
   get isCovered(): boolean { return this._isCovered }
 
+  /** Redraw card face (used for event card flip reveal mid-animation) */
+  redrawFace(): void {
+    this.container.removeChildren()
+    this._draw()
+  }
+
   private _draw(): void {
     const card = this._card
     const w = this._cardWidth
