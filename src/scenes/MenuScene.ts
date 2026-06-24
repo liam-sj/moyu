@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { getCachedPond, setCachedPond, getPondById, PONDS, PondConfig } from '../config/ponds'
-import { getWaterById, getCachedProvince } from '../config/waters'
+import { getWaterById } from '../config/waters'
 import { PondView } from '../views/PondView'
 import { PopupView } from '../views/PopupView'
 import logger from '../utils/Logger'
@@ -64,13 +64,13 @@ export class MenuScene extends Scene {
     }
     homeImg.src = 'assets/home.jpg'
 
-    // Pond name overlaid on background's wooden bulletin board (left-center)
+    // Water body name overlaid on background's wooden bulletin board (left-center)
     const boardCtn = new PIXI.Container()
     boardCtn.x = 40; boardCtn.y = Math.floor(h * 0.49)
     this._boardCtn = boardCtn
     this.container.addChild(boardCtn)
 
-    // Pond name — carved dark lettering on wood (top)
+    // Water body name — carved dark lettering on wood (top)
     const boardHighlight = new PIXI.Text('···', {
       fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
       fill: '#8E7355', align: 'center',
@@ -87,7 +87,7 @@ export class MenuScene extends Scene {
     this._boardNameTxt = boardName
     this._boardNameShadowTxt = boardHighlight
 
-    // Rank + fish count on same line — below pond name
+    // Rank + fish count on same line — below water body name
     const rankHighlight = new PIXI.Text('', {
       fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold',
       fill: '#8E7355', align: 'center',
@@ -104,17 +104,17 @@ export class MenuScene extends Scene {
     this._boardRankTxt = boardRank
     this._boardRankHighlightTxt = rankHighlight
 
-    // Hit area for bulletin board — tap to open pond detail popup
+    // Hit area for bulletin board — tap to open water body detail popup
     this._boardHitArea = { x: 26, y: Math.floor(h * 0.49) - 4, w: 130, h: 50 }
 
     const barY = 4
-    // Single pond — will be created after cloud data loads
+    // Single water body — will be created after cloud data loads
     this._loadRealCounts(w, barY)
 
     // Auth: cloud-stored avatar takes priority, fallback to local storage
     this._setupAuth(w, h)
 
-    // Listen for async join-pond result (fired from GameScene background task)
+    // Listen for async join-water-body result (fired from GameScene background task)
     this.listen<{ ok: boolean; pondName?: string; fishName?: string; fishEmoji?: string; reason?: string }>('pondJoined', (e) => {
       if (e.ok) {
         wx.showToast({ title: `🐟 加入${e.pondName}！摸到${e.fishName}`, icon: 'none', duration: 2500 })
@@ -421,7 +421,6 @@ export class MenuScene extends Scene {
           self._rankOverlay?.destroy({ children: true })
           self._rankOverlay = null
           self._rankOverlayAreas = []
-          self._switchPond(pond.id, w)
         }
       })
     }
@@ -447,10 +446,10 @@ export class MenuScene extends Scene {
     this.container.addChild(ctn)
   }
 
-  /** Show pond detail as an internal overlay (keeps fish swimming) */
-  private _showPondDetailOverlay(pondId: string): void {
+  /** Show water body detail as an internal overlay (keeps fish swimming) */
+  private _showPondDetailOverlay(waterId: string): void {
     if (this._detailOverlay) { this.container.removeChild(this._detailOverlay); this._detailOverlay.destroy({ children: true }) }
-    const pond = getPondById(pondId)
+    const pond = getPondById(waterId)
     if (!pond) return
 
     const h = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
@@ -466,7 +465,7 @@ export class MenuScene extends Scene {
     const cx = (popup.cardW - 32) / 2; let cy = 16
 
     // Header: water body info
-    const water = getWaterById(pondId)
+    const water = getWaterById(waterId)
     const displayEmoji = water ? water.emoji : pond.emoji
     const emoji = new PIXI.Text(displayEmoji, { fontFamily: 'sans-serif', fontSize: 36 } as any)
     emoji.anchor.set(0.5); emoji.x = cx; emoji.y = cy
@@ -485,17 +484,17 @@ export class MenuScene extends Scene {
     popup.content.addChild(subTxt)
 
     this.container.addChild(popup.container)
-    this._loadPondDetailData(popup, cy + 10, pondId)
+    this._loadPondDetailData(popup, cy + 10, waterId)
   }
 
-  /** Async load pond detail stats into the overlay */
-  private async _loadPondDetailData(popup: PopupView, startY: number, pondId: string): Promise<void> {
+  /** Async load water body detail stats into the overlay */
+  private async _loadPondDetailData(popup: PopupView, startY: number, waterId: string): Promise<void> {
     try {
-      let d = getCachedDetail(pondId)
+      let d = getCachedDetail(waterId)
       if (!d) {
-        const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId } })
+        const res = await wx.cloud.callFunction({ name: 'getPondDetail', data: { pondId: waterId } })
         d = (res as any).result
-        if (d?.ok) setCachedDetail(pondId, d)
+        if (d?.ok) setCachedDetail(waterId, d)
       }
       if (!d?.ok || !popup.container.parent) return
 
@@ -541,42 +540,13 @@ export class MenuScene extends Scene {
     } catch {}
   }
 
-  private _switchPond(pondId: string, w: number): void {
-    this._currentPondId = pondId
-    // Look up rank + fish count from cached cloud data
-    let rank = 0; let fishCount = 0
-    if (this._rankingCloudData?.fatPondRank) {
-      const info = this._rankingCloudData.fatPondRank.find((d: any) => d.pondId === pondId)
-      rank = info?.rank || (info ? this._rankingCloudData.fatPondRank.indexOf(info) + 1 : 0)
-      fishCount = info?.dailyClears || 0
-    }
-    this._updateBoardInfo(pondId, rank, fishCount)
-    // Persist selection to local cache so contributes go to this pond
-    const cfg = getPondById(pondId)
-    const fishId = cfg?.fishId || 'xiaojinyu'
-    const cached = getCachedPond()
-    if (cached) {
-      setCachedPond({ ...cached, pondId, fishId })
-    } else {
-      setCachedPond({ pondId, fishId, joinDate: new Date().toISOString(), todayContribution: 0, switchCount: 0 })
-    }
-
-    // Clean up old pond views before _loadRealCounts creates new ones
-    for (const pv of this._pondViews) { this.container.removeChild(pv.container); pv.container.destroy({ children: true }) }
-    this._pondViews = []
-    this._pondHitAreas = []
-
-    // Reload fish data for this pond (_loadRealCounts handles PondView creation)
-    this._loadRealCounts(w, 4)
-  }
-
   private _currentPondId: string | null = null
   private _currentRank = 0
 
   /** Update water body name + rank + fish count on the wooden bulletin board */
-  private _updateBoardInfo(pondId: string, rank: number, fishCount: number): void {
+  private _updateBoardInfo(waterId: string, rank: number, fishCount: number): void {
     if (!this._boardNameTxt) return
-    const water = getWaterById(pondId)
+    const water = getWaterById(waterId)
     const displayName = water ? water.waterName : '未加入水域'
     const displayEmoji = water ? water.emoji : '🌏'
     const provinceInfo = water ? water.province : ''
