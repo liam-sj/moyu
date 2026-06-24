@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js-legacy'
 import { Scene } from '../engine/Scene'
 import { Button } from '../views/Button'
 import { getCachedPond, setCachedPond, getPondById, PONDS, PondConfig } from '../config/ponds'
+import { getWaterById, getCachedProvince } from '../config/waters'
 import { PondView } from '../views/PondView'
 import { PopupView } from '../views/PopupView'
 import logger from '../utils/Logger'
@@ -126,7 +127,7 @@ export class MenuScene extends Scene {
 
     // Button: 鱼塘排行榜 (top)
     const btnW = 180; const btnH = 44; const btnX = (w - btnW) / 2; const btnY1 = Math.floor(h * 0.38)
-    const rankBtn = new Button(btnX, btnY1, btnW, btnH, '🏆 鱼塘排行榜', {
+    const rankBtn = new Button(btnX, btnY1, btnW, btnH, '🏆 水域排行榜', {
       bgColor: '#5C4033', textColor: '#FFFFFF', fontSize: 18, radius: 14, shadow: true,
     })
     this.container.addChild(rankBtn.container)
@@ -338,7 +339,7 @@ export class MenuScene extends Scene {
     ctn.addChild(mask)
 
     // Title
-    const title = new PIXI.Text('🏆 鱼塘排行榜', {
+    const title = new PIXI.Text('🏆 水域排行榜', {
       fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#F39C12',
     } as any)
     title.anchor.set(0.5); title.x = w / 2; title.y = h * 0.08
@@ -389,7 +390,9 @@ export class MenuScene extends Scene {
         fishSp.x = 24; fishSp.y = ry + 8
         ctn.addChild(fishSp)
       }
-      const name = new PIXI.Text(pond.name, {
+      const water = getWaterById(pond.id)
+      const waterName = water ? water.waterName : pond.name
+      const name = new PIXI.Text(waterName, {
         fontFamily: 'sans-serif', fontSize: 15, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
       name.x = 60; name.y = ry + 6
@@ -404,11 +407,12 @@ export class MenuScene extends Scene {
       countTxt.anchor.set(1, 0); countTxt.x = w - 24; countTxt.y = ry + 12
       ctn.addChild(countTxt)
 
-      const slogan = new PIXI.Text(pond.slogan, {
+      const subInfo = water ? `${water.emoji} ${water.province}` : pond.slogan
+      const subTxt = new PIXI.Text(subInfo, {
         fontFamily: 'sans-serif', fontSize: 10, fill: '#A09080',
       } as any)
-      slogan.x = 60; slogan.y = ry + 28
-      ctn.addChild(slogan)
+      subTxt.x = 60; subTxt.y = ry + 28
+      ctn.addChild(subTxt)
 
       this._rankOverlayAreas.push({
         rect: { x: 16, y: ry, w: w - 32, h: rowH },
@@ -461,20 +465,24 @@ export class MenuScene extends Scene {
 
     const cx = (popup.cardW - 32) / 2; let cy = 16
 
-    // Header: emoji + name + slogan
-    const emoji = new PIXI.Text(pond.emoji, { fontFamily: 'sans-serif', fontSize: 36 } as any)
+    // Header: water body info
+    const water = getWaterById(pondId)
+    const displayEmoji = water ? water.emoji : pond.emoji
+    const emoji = new PIXI.Text(displayEmoji, { fontFamily: 'sans-serif', fontSize: 36 } as any)
     emoji.anchor.set(0.5); emoji.x = cx; emoji.y = cy
     popup.content.addChild(emoji)
 
     cy += 40
-    const nameTxt = new PIXI.Text(pond.name, { fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF' } as any)
+    const displayName = water ? water.waterName : pond.name
+    const nameTxt = new PIXI.Text(displayName, { fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#FFFFFF' } as any)
     nameTxt.anchor.set(0.5); nameTxt.x = cx; nameTxt.y = cy
     popup.content.addChild(nameTxt)
 
     cy += 24
-    const sloganTxt = new PIXI.Text('"' + pond.slogan + '"', { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
-    sloganTxt.anchor.set(0.5); sloganTxt.x = cx; sloganTxt.y = cy
-    popup.content.addChild(sloganTxt)
+    const subInfo = water ? `${water.emoji} ${water.province}` : ('"' + pond.slogan + '"')
+    const subTxt = new PIXI.Text(subInfo, { fontFamily: 'sans-serif', fontSize: 12, fill: '#8BA0B0' } as any)
+    subTxt.anchor.set(0.5); subTxt.x = cx; subTxt.y = cy
+    popup.content.addChild(subTxt)
 
     this.container.addChild(popup.container)
     this._loadPondDetailData(popup, cy + 10, pondId)
@@ -565,11 +573,14 @@ export class MenuScene extends Scene {
   private _currentPondId: string | null = null
   private _currentRank = 0
 
-  /** Update pond name + rank + fish count on the wooden bulletin board */
+  /** Update water body name + rank + fish count on the wooden bulletin board */
   private _updateBoardInfo(pondId: string, rank: number, fishCount: number): void {
     if (!this._boardNameTxt) return
-    const cfg = getPondById(pondId)
-    const text = cfg ? cfg.name : '···'
+    const water = getWaterById(pondId)
+    const displayName = water ? water.waterName : '未加入水域'
+    const displayEmoji = water ? water.emoji : '🌏'
+    const provinceInfo = water ? water.province : ''
+    const text = provinceInfo ? `${displayEmoji} ${displayName}（${provinceInfo}）` : `${displayEmoji} ${displayName}`
     this._boardNameTxt.text = text
     if (this._boardNameShadowTxt) this._boardNameShadowTxt.text = text
 
