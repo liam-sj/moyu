@@ -1,3 +1,1 @@
-{
-  "deviceOrientation": "portrait"
-}
+{"deviceOrientation":"portrait","__usePrivacyCheck__":true,"permission":{"scope.userLocation":{"desc":"用于匹配你所在省份的水域"}}}

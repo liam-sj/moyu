@@ -74,41 +74,20 @@ export function setCachedProvince(province: string): void {
   wx.setStorageSync(PROVINCE_CACHE_KEY, province)
 }
 
-/** Detect user province: cached → profile → GPS → default */
+/** Get a random province (GPS detection disabled for now) */
 export async function detectProvince(): Promise<string> {
   const cached = getCachedProvince()
-  if (cached) return cached
+  if (cached) {
+    console.log('[waters] using cached province:', cached)
+    return cached
+  }
 
-  // Tier 1: wx.getUserInfo profile
-  try {
-    const res = await new Promise<any>((resolve) => {
-      wx.getUserInfo({ success: (r: any) => resolve(r), fail: () => resolve(null) })
-    })
-    const profileProvince = res?.userInfo?.province
-    if (profileProvince && profileProvince !== '' && profileProvince !== '海外') {
-      setCachedProvince(profileProvince)
-      return profileProvince
-    }
-  } catch {}
-
-  // Tier 2: GPS + cloud reverse geocode
-  try {
-    const loc = await new Promise<any>((resolve, reject) => {
-      wx.getLocation({ type: 'wgs84', success: (r: any) => resolve(r), fail: (e: any) => reject(e) })
-    })
-    const res = await wx.cloud.callFunction({
-      name: 'getProvince',
-      data: { latitude: loc.latitude, longitude: loc.longitude }
-    })
-    const province = (res as any).result?.province
-    if (province) {
-      setCachedProvince(province)
-      return province
-    }
-  } catch {}
-
-  // Tier 3: default
-  return ''
+  // Randomly assign a province, then cache it permanently
+  const provinces = WATER_BODIES.map(w => w.province)
+  const picked = provinces[Math.floor(Math.random() * provinces.length)]
+  setCachedProvince(picked)
+  console.log('[waters] random province:', picked)
+  return picked
 }
 
 // Fish types (moved from ponds.ts)

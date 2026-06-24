@@ -7,7 +7,7 @@ import { PopupView } from '../../views/PopupView'
 import { setCachedPond } from '../../config/waters'
 import { clearRankingCache, clearDetailCache } from '../../config/rankingCache'
 import { AudioManager } from '../../utils/AudioManager'
-import { detectProvince, getWaterByProvince, DEFAULT_WATER, setCachedProvince } from '../../config/waters'
+import { detectProvince, getWaterByProvince, DEFAULT_WATER } from '../../config/waters'
 import logger from '../../utils/Logger'
 import type { EventBus } from '../../engine/EventBus'
 import type { SceneManager } from '../../engine/SceneManager'
@@ -545,31 +545,22 @@ export class GameOverlayView {
 
     // Run detection
     const host = this.host
+    const self = this
     ;(async () => {
       const province = await detectProvince()
-      const water = province ? getWaterByProvince(province) : undefined
-      const finalWater = water || DEFAULT_WATER
+      const water = province ? getWaterByProvince(province) : DEFAULT_WATER
 
-      // Remove detecting text
       detecting.text = ''
-      waterInfo.text = `${finalWater.emoji} 已加入「${finalWater.waterName}」`
+      waterInfo.text = `${water.emoji} 已加入「${water.waterName}」`
 
-      if (!water) {
-        waterInfo.text = `${finalWater.emoji} 漂流至「${finalWater.waterName}」`
-        waterInfo.style.fill = '#F0A860'
-      }
+      self._joinPondAsync(fishId, fishInfo, water.waterId, water.waterName)
 
-      // Auto-join via cloud
-      this._joinPondAsync(fishId, fishInfo, finalWater.waterId, finalWater.waterName)
-
-      // Tap to return home after 1.5s
       setTimeout(() => {
         const hint = new PIXI.Text('👆 点击任意位置返回', {
           fontFamily: 'sans-serif', fontSize: 13, fill: '#6B7B8D',
         } as any)
         hint.anchor.set(0.5); hint.x = cx; hint.y = waterInfoY + 40
-        this.host.container.addChild(hint)
-
+        self.host.container.addChild(hint)
         host._resultArea = [{
           rect: { x: 0, y: 0, w, h },
           cb: () => {

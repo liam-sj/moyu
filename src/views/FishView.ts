@@ -55,7 +55,7 @@ const FISH_TRAITS: Record<string, FishTraits> = {
   pangxie:    { baseSpeed: 0.08, vertSpeed: 0,     dashChance: 0.06, dashSpeedMul: 5,  turnChance: 0.25, pauseChance: 0.25, pauseDuration: 90,  wagStrength: 0.02 },
   jianyu:     { baseSpeed: 0.22, vertSpeed: 0.03, dashChance: 0.12, dashSpeedMul: 10, turnChance: 0.35, pauseChance: 0.10, pauseDuration: 40,  wagStrength: 0.04 },
   haitun:     { baseSpeed: 0.17, vertSpeed: 0.07, dashChance: 0.10, dashSpeedMul: 7,  turnChance: 0.40, pauseChance: 0.12, pauseDuration: 50,  wagStrength: 0.05 },
-  __announcer__:{ baseSpeed: 0.12,vertSpeed: 0.04, dashChance: 0.01, dashSpeedMul: 4,  turnChance: 0.25, pauseChance: 0.20, pauseDuration: 100, wagStrength: 0.03 },
+  __announcer__:{ baseSpeed: 0.18,vertSpeed: 0.03, dashChance: 0.08, dashSpeedMul: 12, turnChance: 0.35, pauseChance: 0.05, pauseDuration: 30, wagStrength: 0.04 },
 }
 
 export function getFishTex(fishId: string, idx: number = 0): PIXI.Texture | null {

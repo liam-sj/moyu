@@ -107,10 +107,10 @@ export class GameScene extends Scene {
       const tex = PIXI.Texture.from(canvas)
       const bg = new PIXI.Sprite(tex)
       bg.width = this.screenW; bg.height = this.screenH
-      bg.alpha = 0.65
+      bg.alpha = 0.9
       this.container.addChildAt(bg, 0)
     }
-    bgImg.src = 'assets/guanqia4.png'
+    bgImg.src = 'assets/guanqia4.jpg'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
