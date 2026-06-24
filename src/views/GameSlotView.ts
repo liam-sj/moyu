@@ -254,8 +254,12 @@ export class GameSlotView {
     const sTex = getBtnIcon(3)
     if (sTex) {
       const sSprite = new PIXI.Sprite(sTex)
-      sSprite.width = 28; sSprite.height = 28
-      sSprite.x = 6; sSprite.y = 64
+      const maxSize = 26
+      const ratio = sTex.width / sTex.height
+      if (ratio > 1) { sSprite.width = maxSize; sSprite.height = maxSize / ratio }
+      else { sSprite.height = maxSize; sSprite.width = maxSize * ratio }
+      sSprite.x = 6 + (28 - sSprite.width) / 2
+      sSprite.y = 64 + (28 - sSprite.height) / 2
       this.hudLayer.addChild(sSprite)
     }
     this.settingsHitArea = { x: 4, y: 60, w: 34, h: 34 }
@@ -267,10 +271,13 @@ export class GameSlotView {
     happyTxt.anchor.set(1, 0); happyTxt.x = w - 10; happyTxt.y = 14
     this.hudLayer.addChild(happyTxt)
 
-    // Refresh skill button
+    // Refresh skill button — evenly spaced, same row as undo/shuffle
     const slotBarBtm = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const bGap = 8; const bW = Math.floor((this.screenW - 16 - bGap * 2) / 3)
-    this._renderSkillButton(8 + (bW + bGap) * 2, slotBarBtm + 8, bW, 32)
+    const iconSize = 50
+    const totalIconW = iconSize * 3
+    const gap = Math.floor((this.screenW - totalIconW) / 4)
+    const sx = gap + 2 * (iconSize + gap)  // skill is 3rd button
+    this._renderSkillButton(sx, slotBarBtm + 13, iconSize, iconSize)
   }
 
   // ── Skill button ──
@@ -288,23 +295,22 @@ export class GameSlotView {
 
     const hasCharges = charges > 0
     const ctn = new PIXI.Container()
-    // Icon sprite (index 2 = skill)
-    const iconSize = Math.min(h - 4, 26)
+    ctn.x = x; ctn.y = y
     const sTex = getBtnIcon(2)
     if (sTex) {
       const sprite = new PIXI.Sprite(sTex)
-      sprite.width = iconSize; sprite.height = iconSize
-      sprite.x = x + 4; sprite.y = y + (h - iconSize) / 2
+      sprite.width = w; sprite.height = h
       if (!hasCharges) sprite.tint = 0x8899AA
       ctn.addChild(sprite)
     }
-    // Charge count
-    const txt = new PIXI.Text(String(charges), {
-      fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'bold',
-      fill: hasCharges ? '#F39C12' : '#8899AA',
-    } as any)
-    txt.anchor.set(0.5); txt.x = x + w * 0.7; txt.y = y + h / 2
-    ctn.addChild(txt)
+    // Charge badge
+    if (charges > 0) {
+      const badge = new PIXI.Text(String(charges), {
+        fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#F39C12',
+      } as any)
+      badge.anchor.set(1, 0); badge.x = w - 2; badge.y = 2
+      ctn.addChild(badge)
+    }
 
     this.container.addChild(ctn)
     this.skillBtnContainer = ctn

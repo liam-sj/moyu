@@ -140,26 +140,17 @@ export class GameScene extends Scene {
     this._actionHitAreas = []
     this._bottomBtnContainers = []
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const btnY = slotBarBottom + 8
-    const btnH = 32
-    const totalBtnW = this.screenW - 16
-    const btnGap = 8
-    const btnW = Math.floor((totalBtnW - btnGap * 2) / 3)
+    const btnY = slotBarBottom + 13
+    const iconSize = 50
+    const totalIconW = iconSize * 3
+    const gap = Math.floor((this.screenW - totalIconW) / 4)  // 4 equal gaps
+    const btnX = (i: number) => gap + i * (iconSize + gap)
 
-    const iconSize = Math.min(btnH - 4, 28)
-    let bx = 8
-    // Undo (icon index 0)
-    const undoIcon = createIconButton(0, bx + (btnW - iconSize) / 2, btnY + (btnH - iconSize) / 2, iconSize)
-    this.container.addChild(undoIcon)
-    this._bottomBtnContainers.push(undoIcon)
-    this._actionHitAreas.push({ rect: { x: bx, y: btnY, w: btnW, h: btnH }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    this.container.addChild(createIconButton(0, btnX(0), btnY, iconSize, iconSize))
+    this._actionHitAreas.push({ rect: { x: btnX(0), y: btnY, w: iconSize, h: iconSize }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
-    bx += btnW + btnGap
-    // Shuffle (icon index 1)
-    const shuffleIcon = createIconButton(1, bx + (btnW - iconSize) / 2, btnY + (btnH - iconSize) / 2, iconSize)
-    this.container.addChild(shuffleIcon)
-    this._bottomBtnContainers.push(shuffleIcon)
-    this._actionHitAreas.push({ rect: { x: bx, y: btnY, w: btnW, h: btnH }, cb: () => {
+    this.container.addChild(createIconButton(1, btnX(1), btnY, iconSize, iconSize))
+    this._actionHitAreas.push({ rect: { x: btnX(1), y: btnY, w: iconSize, h: iconSize }, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos
@@ -320,24 +311,17 @@ export class GameScene extends Scene {
     this._debugHitCb = null
 
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const btnY2 = slotBarBottom + 8
-    const btnH2 = 32
-    const totalBtnW2 = this.screenW - 16
-    const btnGap2 = 8
-    const btnW2 = Math.floor((totalBtnW2 - btnGap2 * 2) / 3)
-    let bx2 = 8
+    const btnY2 = slotBarBottom + 13
+    const iconSize2 = 50
+    const totalIconW2 = iconSize2 * 3
+    const gap2 = Math.floor((this.screenW - totalIconW2) / 4)
+    const btnX2 = (i: number) => gap2 + i * (iconSize2 + gap2)
 
-    const iconSize2 = Math.min(btnH2 - 4, 28)
-    const uIcon2 = createIconButton(0, bx2 + (btnW2 - iconSize2) / 2, btnY2 + (btnH2 - iconSize2) / 2, iconSize2)
-    this.container.addChild(uIcon2)
-    this._bottomBtnContainers.push(uIcon2)
-    this._actionHitAreas.push({ rect: { x: bx2, y: btnY2, w: btnW2, h: btnH2 }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    this.container.addChild(createIconButton(0, btnX2(0), btnY2, iconSize2, iconSize2))
+    this._actionHitAreas.push({ rect: { x: btnX2(0), y: btnY2, w: iconSize2, h: iconSize2 }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
-    bx2 += btnW2 + btnGap2
-    const sIcon2 = createIconButton(1, bx2 + (btnW2 - iconSize2) / 2, btnY2 + (btnH2 - iconSize2) / 2, iconSize2)
-    this.container.addChild(sIcon2)
-    this._bottomBtnContainers.push(sIcon2)
-    this._actionHitAreas.push({ rect: { x: bx2, y: btnY2, w: btnW2, h: btnH2 }, cb: () => {
+    this.container.addChild(createIconButton(1, btnX2(1), btnY2, iconSize2, iconSize2))
+    this._actionHitAreas.push({ rect: { x: btnX2(1), y: btnY2, w: iconSize2, h: iconSize2 }, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos
