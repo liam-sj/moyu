@@ -47,6 +47,7 @@ export const DEFAULT_WATER: WaterBody = {
 }
 
 export function getWaterByProvince(province: string): WaterBody | undefined {
+  if (!province) return undefined
   // Normalize: strip trailing "省","市","自治区","特别行政区"
   const normalized = province
     .replace(/省$/, '')
