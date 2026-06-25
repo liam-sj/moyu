@@ -3,6 +3,7 @@ import type { GameLogic } from '../../core/GameLogic'
 import type { SkillConfig, GameResult, BoardCard, FuncCardConfig } from '../../core/types'
 import { CardView } from '../../views/CardView'
 import { getFishTex } from '../../views/FishView'
+import { speedUp } from '../../config/animation'
 import { PopupView } from '../../views/PopupView'
 import { setCachedPond } from '../../config/waters'
 import { clearRankingCache, clearDetailCache } from '../../config/rankingCache'
@@ -76,14 +77,14 @@ export class GameOverlayView {
     bg.endFill()
     panel.addChild(bg)
 
-    const title = new PIXI.Text('⚠️ 难度飙升', {
-      fontFamily: 'sans-serif', fontSize: 22, fontWeight: 'bold', fill: '#F39C12',
+    const title = new PIXI.Text('🐟 一大波鱼群袭来！', {
+      fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#5DADE2',
     } as any)
-    title.anchor.set(0.5); title.x = panelW / 2; title.y = 36
+    title.anchor.set(0.5); title.x = panelW / 2; title.y = 34
     panel.addChild(title)
 
-    const desc = new PIXI.Text('通关后可加入鱼塘', {
-      fontFamily: 'sans-serif', fontSize: 14, fill: '#A0B8C8',
+    const desc = new PIXI.Text('通关后加入鱼塘，壮大你的鱼群', {
+      fontFamily: 'sans-serif', fontSize: 13, fill: '#A0B8C8',
     } as any)
     desc.anchor.set(0.5); desc.x = panelW / 2; desc.y = 68
     panel.addChild(desc)
@@ -209,7 +210,7 @@ export class GameOverlayView {
     const ticker = PIXI.Ticker.shared
     const tick = () => {
       if (dismissed) { ticker.remove(tick); return }
-      if (Date.now() - startTime >= 1500) {
+      if (Date.now() - startTime >= speedUp(1500)) {
         ticker.remove(tick)
         cleanup()
       }

@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js-legacy'
 import type { CardView } from './CardView'
 import type { SlotBar } from '../core/SlotBar'
+import { speedUp } from '../config/animation'
 
 export interface FlyEffect {
   view: CardView; uid: string; startX: number; startY: number
@@ -15,6 +16,7 @@ export class GameAnimations {
   dealingCards: Array<{
     view: CardView; uid: string; targetX: number; targetY: number
     _fromX: number; _fromY: number; _startTime: number; _animMs: number
+    _arcHeight: number
   }> = []
 
   shuffleCards: Array<{
@@ -36,6 +38,11 @@ export class GameAnimations {
 
   /** Called when a card finishes flying and lands in the slot */
   onFlyLanded: ((uid: string) => void) | null = null
+  /** Called when all cards in a layer have finished their dealing animation */
+  onLayerDealt: ((layer: number) => void) | null = null
+
+  private _dealtLayerTotal: Map<number, number> = new Map()
+  private _dealtLayerArrived: Map<number, number> = new Map()
 
   constructor(container: PIXI.Container) {
     this.container = container
@@ -44,7 +51,15 @@ export class GameAnimations {
   update(dt: number, cardViews: Map<string, CardView>, slotBar: SlotBar): void {
     const frameDt = Math.min(dt, 3)
 
-    // Drive dealing animations (batch, real-time based)
+    // Drive dealing animations (batch, real-time based) — fish swimming up arc
+    // Lazy-init per-layer counts on first frame
+    if (this._dealtLayerTotal.size === 0 && this.dealingCards.length > 0) {
+      for (const dc of this.dealingCards) {
+        const l = dc.view.layer
+        this._dealtLayerTotal.set(l, (this._dealtLayerTotal.get(l) || 0) + 1)
+        this._dealtLayerArrived.set(l, 0)
+      }
+    }
     const now = Date.now()
     for (let d = this.dealingCards.length - 1; d >= 0; d--) {
       const dc = this.dealingCards[d]
@@ -52,14 +67,27 @@ export class GameAnimations {
       const elapsed = now - dc._startTime
       if (elapsed < 0) continue
       const p = Math.min(elapsed / dc._animMs, 1)
-      const t = 1 - Math.pow(1 - p, 3)
+      // ease-in-out: slow start → fast middle → slow settle
+      const t = p < 0.5
+        ? 4 * p * p * p
+        : 1 - Math.pow(-2 * p + 2, 3) / 2
+      // Arc path: fish leap upward then glide down into position
+      const arcY = -dc._arcHeight * 3 * p * (1 - p)
       dc.view.container.x = dc._fromX + (dc.targetX - dc._fromX) * t
-      dc.view.container.y = dc._fromY + (dc.targetY - dc._fromY) * t
+      dc.view.container.y = dc._fromY + (dc.targetY - dc._fromY) * t + arcY
       dc.view.container.alpha = Math.min(p * 2, 1)
-      dc.view.container.scale.set(0.6 + 0.4 * Math.min(p * 1.5, 1))
+      dc.view.container.scale.set(0.2 + 0.8 * Math.min(p * 1.6, 1))
       if (p >= 1) {
+        const layer = dc.view.layer
         dc.view.snapToTarget()
         this.dealingCards.splice(d, 1)
+        // Track per-layer completion — trigger when ~30% of layer has arrived
+        const arrived = (this._dealtLayerArrived.get(layer) || 0) + 1
+        this._dealtLayerArrived.set(layer, arrived)
+        const total = this._dealtLayerTotal.get(layer) || 1
+        if (arrived === Math.max(1, Math.ceil(total * 0.3))) {
+          if (this.onLayerDealt) this.onLayerDealt(layer)
+        }
       }
     }
 
@@ -140,7 +168,7 @@ export class GameAnimations {
         if (this.onFlyLanded) this.onFlyLanded(fly.uid)
         slotBar.notifySlotChanged()
         // Delay match check so player sees card settle in slot first
-        this.pendingMatches.push({ slotBar, uid: fly.uid, delay: 35 })
+        this.pendingMatches.push({ slotBar, uid: fly.uid, delay: speedUp(12) })
       }
     }
 
@@ -206,7 +234,7 @@ export class GameAnimations {
       particles.push(p)
       origins.push({ x: ox, y: oy, angle: (i / 6) * Math.PI * 2 + (Math.random() - 0.5) * 0.5 })
     }
-    this.effects.push({ particles, elapsed: 0, duration: 30, origins })
+    this.effects.push({ particles, elapsed: 0, duration: speedUp(30), origins })
   }
 
   /** Sparkle particles around the revealed fish */
@@ -227,7 +255,7 @@ export class GameAnimations {
       particles.push(p)
       origins.push({ x: ox, y: oy, angle: (i / 10) * Math.PI * 2 + Math.random() * 0.5 })
     }
-    this.effects.push({ particles, elapsed: 0, duration: 50, origins })
+    this.effects.push({ particles, elapsed: 0, duration: speedUp(50), origins })
   }
 
   reset(): void {

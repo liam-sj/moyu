@@ -1,15 +1,6 @@
 import * as PIXI from 'pixi.js-legacy'
 import type { BoardCard } from '../core/types'
-import { getCardColor } from '../core/Card'
 import { ATLAS, atlasKey, ATLAS_PATH, buildAtlas } from '../config/atlas'
-
-function hexToInt(hex: string): number {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (result) {
-    return (parseInt(result[1], 16) << 16) | (parseInt(result[2], 16) << 8) | parseInt(result[3], 16)
-  }
-  return 0xFF8C42
-}
 
 /** Shared base texture — loaded once via wx.createImage, shared by all CardViews */
 let _baseTexture: PIXI.BaseTexture | null = null
@@ -59,12 +50,34 @@ export function createCardImage(
     if (covered) sprite.tint = 0x556677
     ctn.addChild(sprite)
   } else {
-    const displayIcon = (isEvent && !isRevealed) ? '❓' : icon
-    const txt = new PIXI.Text(displayIcon, {
-      fontFamily: 'sans-serif', fontSize: Math.max(12, Math.floor(maxW * 0.45)), align: 'center',
-    } as any)
-    txt.anchor.set(0.5)
-    ctn.addChild(txt)
+    const isMystery = isEvent && !isRevealed
+    if (isMystery) {
+      // Mystery card: styled "?" with circular purple background
+      const size = Math.floor(maxW * 0.52)
+      const r = size * 0.62
+      const pill = new PIXI.Graphics()
+      pill.beginFill(covered ? 0x2A1A3A : 0x6B4D8A, covered ? 0.60 : 0.70)
+      pill.drawCircle(0, 0, r)
+      pill.endFill()
+      if (!covered) {
+        pill.lineStyle(1.5, 0xB39BC8, 0.50)
+        pill.drawCircle(0, 0, r)
+      }
+      ctn.addChild(pill)
+      const txt = new PIXI.Text('?', {
+        fontFamily: 'sans-serif', fontSize: size, fontWeight: 'bold',
+        fill: covered ? '#5A4A6A' : '#E8D5F5',
+      } as any)
+      txt.anchor.set(0.5)
+      ctn.addChild(txt)
+    } else {
+      const displayIcon = icon
+      const txt = new PIXI.Text(displayIcon, {
+        fontFamily: 'sans-serif', fontSize: Math.max(12, Math.floor(maxW * 0.45)), align: 'center',
+      } as any)
+      txt.anchor.set(0.5)
+      ctn.addChild(txt)
+    }
   }
   return ctn
 }
@@ -119,7 +132,7 @@ export class CardView {
     const baseX = offsetX + card.col * (cardWidth + gap) + card.layer * layerOffsetX + staggerX
     const baseY = offsetY + card.row * (cardHeight + gap) - card.layer * layerOffsetY
 
-    // Deterministic jitter (±3px) from uid for organic pile look
+    // Deterministic jitter for organic fish-swarm look
     const uidNum = parseInt(card.uid.slice(1), 10) || 0
     const jitterX = ((uidNum * 7 + 13) % 7) - 3
     const jitterY = ((uidNum * 13 + 7) % 7) - 3
@@ -212,12 +225,12 @@ export class CardView {
     if (this._isCovered === covered) return
     this._isCovered = covered
     this._card.isCovered = covered
-    // Remove all children and redraw — cheap, no PIXI object allocation for the container
     this.container.removeChildren()
     this._draw()
   }
 
   get isCovered(): boolean { return this._isCovered }
+  get cardData() { return this._card }
 
   /** Redraw card face (used for event card flip reveal mid-animation) */
   redrawFace(): void {
@@ -231,39 +244,29 @@ export class CardView {
     const h = this._cardHeight
     const covered = this._isCovered
 
-    const colorStr = getCardColor(card)
-    const colorInt = hexToInt(colorStr)
-
-    // ── Card body ──
     if (covered) {
-      // Covered: dark overlay with subtle border
-      const overlay = new PIXI.Graphics()
-      overlay.beginFill(0x111820, 0.82)
-      overlay.drawRoundedRect(0, 0, w, h, 8)
-      overlay.endFill()
-      this.container.addChild(overlay)
-      const border = new PIXI.Graphics()
-      border.lineStyle(1.5, 0x667788, 0.5)
-      border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
-      this.container.addChild(border)
+      // ── Back-of-school fish: barely visible, like distant silhouettes ──
+      const img = createCardImage(card.cardId, card.icon,
+        card.type === 'event', card.isRevealed, w * 0.85, h * 0.85, true)
+      img.x = w / 2; img.y = h / 2
+      img.alpha = 0.05
+      this.container.addChild(img)
     } else {
-      // Uncovered: subtle fill + bold border for contrast against bright bg
-      const bg = new PIXI.Graphics()
-      bg.beginFill(0x000000, 0.12)
-      bg.drawRoundedRect(2, 2, w - 4, h - 4, 6)
-      bg.endFill()
-      this.container.addChild(bg)
-      const border = new PIXI.Graphics()
-      border.lineStyle(2.5, colorInt, 0.75)
-      border.drawRoundedRect(1, 1, w - 2, h - 2, 6)
-      this.container.addChild(border)
-    }
+      // ── Front-of-school fish: bright, clear, ready to catch ──
+      // Subtle shadow beneath fish
+      const sw = w * 0.35; const sh = h * 0.12
+      const shadow = new PIXI.Graphics()
+      shadow.beginFill(0x000000, 0.25)
+      shadow.drawEllipse(w / 2 - sw / 2, h / 2 + 2 - sh / 2, sw, sh)
+      shadow.endFill()
+      this.container.addChild(shadow)
 
-    // Card image from texture atlas, with emoji fallback
-    const img = createCardImage(card.cardId, card.icon,
-      card.type === 'event', card.isRevealed, w, h, covered)
-    img.x = w / 2; img.y = h / 2
-    this.container.addChild(img)
+      // Fish sprite at full size
+      const img = createCardImage(card.cardId, card.icon,
+        card.type === 'event', card.isRevealed, w * 0.92, h * 0.92, false)
+      img.x = w / 2; img.y = h / 2
+      this.container.addChild(img)
+    }
   }
 
   destroy(): void {

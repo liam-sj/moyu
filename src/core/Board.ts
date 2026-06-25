@@ -29,12 +29,12 @@ export class Board {
     const areaH = screenH - areaTop - areaBottom
     const areaW = screenW - 40
 
-    const layerOffsetRatio = 0.15
+    const layerOffsetRatio = 0.06
     const gap = gapRatio > 0 ? gapRatio : 0.18  // Level 1 default gap
 
     // Solve: totalWidth = CW * (cols + (cols-1)*gap + (layers-1)*layerOffsetRatio) ≤ areaW
     const denom = cols + (cols - 1) * gap + (layers - 1) * layerOffsetRatio
-    const maxCardW = 50  // cap to keep both levels consistent and prevent overflow
+    const maxCardW = 62  // allow larger cards for better fish visibility
     this.cardWidth = Math.min(maxCardW, Math.floor(areaW / denom))
     this.cardHeight = this.cardWidth
 
@@ -284,6 +284,11 @@ export class Board {
     }
   }
 
+  /** Public check: is this card covered by any card in the layer above? */
+  isCardCovered(card: BoardCard): boolean {
+    return this._isCovered(card)
+  }
+
   private _isCovered(card: BoardCard): boolean {
     const upperLayer = card.layer + 1
     if (upperLayer >= this.grid.length) return false
@@ -319,6 +324,41 @@ export class Board {
           if (overlapArea >= minOverlapArea) {
             return true
           }
+        }
+      }
+    }
+    return false
+  }
+
+  /** Check if this card covers any card in the layer below (for transparency hint). */
+  isCoveringCard(card: BoardCard): boolean {
+    const lowerLayer = card.layer - 1
+    if (lowerLayer < 0) return false
+
+    const MIN_OVERLAP_RATIO = 0.08
+    const cardArea = this.cardWidth * this.cardHeight
+    const minOverlapArea = cardArea * MIN_OVERLAP_RATIO
+
+    const cx = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX
+    const cy = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY
+    const cRight = cx + this.cardWidth
+    const cBottom = cy + this.cardHeight
+
+    for (let r = 0; r < this.grid[lowerLayer].length; r++) {
+      for (let c = 0; c < this.grid[lowerLayer][0].length; c++) {
+        const lower = this.grid[lowerLayer][r][c]
+        if (!lower || lower.isRemoved) continue
+
+        const lx = this.offsetX + c * (this.cardWidth + this.gap) + lowerLayer * this.layerOffsetX
+        const ly = this.offsetY + r * (this.cardHeight + this.gap) - lowerLayer * this.layerOffsetY
+        const lRight = lx + this.cardWidth
+        const lBottom = ly + this.cardHeight
+
+        const overlapX = Math.min(cRight, lRight) - Math.max(cx, lx)
+        const overlapY = Math.min(cBottom, lBottom) - Math.max(cy, ly)
+
+        if (overlapX > 0 && overlapY > 0) {
+          if (overlapX * overlapY >= minOverlapArea) return true
         }
       }
     }
@@ -529,12 +569,16 @@ export class Board {
   }
 
   private _emitBoardChanged(): void {
-    const cards: Array<{ uid: string; blocked: boolean }> = []
+    const cards: Array<{ uid: string; blocked: boolean; covering: boolean }> = []
     for (let l = 0; l < this.grid.length; l++)
       for (let r = 0; r < this.grid[l].length; r++)
         for (let c = 0; c < this.grid[l][r].length; c++) {
           const card = this.grid[l][r][c]
-          if (card && !card.isRemoved) cards.push({ uid: card.uid, blocked: card.isCovered })
+          if (card && !card.isRemoved) cards.push({
+            uid: card.uid,
+            blocked: card.isCovered,
+            covering: this.isCoveringCard(card)
+          })
         }
     this.bus.emit<BoardChangedEvent>('boardChanged', { cards })
   }

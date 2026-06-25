@@ -28,13 +28,13 @@ export const LEVELS: Record<string, LevelConfig> = {
     layers: 9,
     gridRows: 6,
     gridCols: 6,
-    totalCards: 96,
+    totalCards: 102,
     steps: 99,
     slotLimit: 7,
-    // 9层金字塔：底22→顶2，逐层递减
-    layerCards: [22, 18, 14, 12, 10, 8, 6, 4, 2],
-    gapRatio: 0.08,             // 紧凑排列
-    clusterLayers: [4, 5, 6, 7, 8],
+    // 9层金字塔：底24→顶2，底层填充率67%
+    layerCards: [24, 20, 16, 12, 10, 8, 6, 4, 2],
+    gapRatio: 0.06,             // 更紧凑排列，增加层间遮挡
+    clusterLayers: [3, 4, 5, 6, 7, 8],
   },
 }
 

@@ -286,22 +286,30 @@ export class MenuScene extends Scene {
     }
     if (!targetPondId) targetPondId = WATER_BODIES[0].waterId
 
+    this._currentPondId = targetPondId
+    this._rebuildPondView(targetPondId, w)
+  }
+
+  /** Build or rebuild the PondView + fish for a given water body using cached cloud data */
+  private _rebuildPondView(waterId: string, w: number): void {
+    const data = this._rankingCloudData
+    const water = getWaterById(waterId) || getWaterById(WATER_BODIES[0].waterId)!
+    this._currentPondId = waterId
+
     // Clean up old pond views first
     for (const pv of this._pondViews) { this.container.removeChild(pv.container); pv.container.destroy({ children: true }) }
     this._pondViews = []
     this._pondHitAreas = []
 
-    const water = getWaterById(targetPondId) || getWaterById(WATER_BODIES[0].waterId)!
-    this._currentPondId = targetPondId
     // Compute rank from sorted cloud data (match ranking overlay sort order)
     let pondRank = 0; let fishCount = 0
     if (data?.fatPondRank) {
       const sorted = [...data.fatPondRank].sort((a: any, b: any) => (b.dailyClears || 0) - (a.dailyClears || 0))
-      const info = sorted.find((d: any) => d.pondId === targetPondId)
+      const info = sorted.find((d: any) => d.pondId === waterId)
       pondRank = info ? sorted.indexOf(info) + 1 : 0
       fishCount = info?.dailyClears || 0
     }
-    this._updateBoardInfo(targetPondId, pondRank, fishCount)
+    this._updateBoardInfo(waterId, pondRank, fishCount)
 
     const screenH = (typeof wx !== 'undefined' ? wx.getSystemInfoSync().windowHeight : 667)
     const pondW = w
@@ -320,14 +328,14 @@ export class MenuScene extends Scene {
     this._pondViews = [pv]
     this._pondHitAreas.push({
       rect: { x: px, y: py, w: pondW, h: 22 },
-      cb: () => { this._showPondDetailOverlay(targetPondId) }
+      cb: () => { this._showPondDetailOverlay(waterId) }
     })
 
     // Spawn fish if data available
     if (data?.ok && data.fatPondRank) {
-      const info = data.fatPondRank.find((d: any) => d.pondId === targetPondId)
-      const entries = (data.fishEntries && data.fishEntries[targetPondId]) || []
-      logger.info('MenuScene', `spawnFish targetPondId=${targetPondId} fishCount=${entries.length}`)
+      const info = data.fatPondRank.find((d: any) => d.pondId === waterId)
+      const entries = (data.fishEntries && data.fishEntries[waterId]) || []
+      logger.info('MenuScene', `spawnFish targetPondId=${waterId} fishCount=${entries.length}`)
       pv.spawnFromEntries(entries)
       if (info) { const rank = info.rank || (data.fatPondRank.indexOf(info) + 1); pv.updateRank?.(rank) }
     }
@@ -404,9 +412,9 @@ export class MenuScene extends Scene {
           self._rankOverlay?.destroy({ children: true })
           self._rankOverlay = null
           self._rankOverlayAreas = []
-          // Switch home page to selected water body (i+1 = displayed rank in sorted list)
+          // Switch home page to selected water body
           self._currentPondId = wb.waterId
-          self._updateBoardInfo(wb.waterId, i + 1, getCount(wb.waterId))
+          self._rebuildPondView(wb.waterId, w)
         }
       })
     }

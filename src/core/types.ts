@@ -132,7 +132,7 @@ export interface GameResult {
 export interface BoardInitEvent { cards: BoardCard[] }
 export interface StepsChangedEvent { remaining: number }
 export interface CardToSlotEvent { card: BoardCard; slotIndex: number }
-export interface BoardChangedEvent { cards: Array<{ uid: string; blocked: boolean }> }
+export interface BoardChangedEvent { cards: Array<{ uid: string; blocked: boolean; covering: boolean }> }
 export interface EliminatedEvent { uids: string[]; happiness: number; count: number }
 export interface HappyChangedEvent { value: number }
 export interface SkillTriggeredEvent { skills: SkillConfig[] }

@@ -16,6 +16,7 @@ import { GameOverlayView } from './overlays/GameOverlayView'
 import { GameAnimations } from '../views/GameAnimations'
 import { GameSlotView } from '../views/GameSlotView'
 import { createIconButton } from '../views/IconButtons'
+import { speedUp } from '../config/animation'
 
 export class GameScene extends Scene {
   private logic!: GameLogic
@@ -88,6 +89,10 @@ export class GameScene extends Scene {
     this.slotView = new GameSlotView(this.container, this.slotLayer, this.hudLayer)
     this.animations = new GameAnimations(this.container)
     this.animations.onFlyLanded = (uid) => { this.slotView.flyingUids.delete(uid) }
+    this.animations.onLayerDealt = (layer: number) => {
+      // When layer N arrives, hide cards in layer N-1 that are covered by layer N
+      this._applyLayerCoverage(layer)
+    }
     this.overlayView = new GameOverlayView(this as any)
 
     this._loadSettings()
@@ -109,8 +114,16 @@ export class GameScene extends Scene {
       bg.width = this.screenW; bg.height = this.screenH
       bg.alpha = 0.9
       this.container.addChildAt(bg, 0)
+      // Level 2: add colored tint overlay
+      if (this.levelId === 'level2') {
+        const tint = new PIXI.Graphics()
+        tint.beginFill(0x1A3A4A, 0.15)
+        tint.drawRect(0, 0, this.screenW, this.screenH)
+        tint.endFill()
+        this.container.addChildAt(tint, 1)
+      }
     }
-    bgImg.src = 'assets/guanqia4.jpg'
+    bgImg.src = 'assets/guanqia5.jpg'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
@@ -342,8 +355,6 @@ export class GameScene extends Scene {
     this.cardViews.clear()
 
     const board = this.logic.board
-    const deckX = this.screenW / 2
-    const deckY = board.offsetY - 60
 
     const sorted = [...cards].sort((a, b) => a.layer - b.layer)
     const views: CardView[] = []
@@ -358,6 +369,8 @@ export class GameScene extends Scene {
       view.container.zIndex = card.layer
       this.boardLayer.addChild(view.container)
       this.cardViews.set(card.uid, view)
+      // On first render: start all fish visible, coverage applied after dealing animation
+      if (this._firstRender && card.isCovered) view.setCovered(false)
       views.push(view)
     }
     this.boardLayer.sortChildren()
@@ -374,26 +387,34 @@ export class GameScene extends Scene {
             fromX: op.x, fromY: op.y,
             targetX: view.targetX, targetY: view.targetY,
             _startTime: Date.now() + 50 + Math.random() * 150,
-            _animMs: 400,
+            _animMs: speedUp(400),
           })
         } else { view.snapToTarget() }
       }
     } else if (this._firstRender) {
       this._firstRender = false
       const isDeep = this.levelId !== 'level1'
-      const layerDelay = isDeep ? 80 : 60
-      const cardDelay = isDeep ? 8 : 5
-      const animMs = isDeep ? 500 : 350
+      const layerDelay = isDeep ? 100 : 70
+      const cardDelay = isDeep ? 6 : 3
+      const animMs = isDeep ? 2500 : 1300
       for (let i = 0; i < views.length; i++) {
         const view = views[i]
-        view.container.x = deckX; view.container.y = deckY
-        view.container.alpha = 0; view.container.scale.set(0.4)
+        // All fish emerge from a single point in the upper-right corner
+        const fromX = this.screenW + 30
+        const fromY = -30
+        const uidNum = parseInt(view.uid.slice(1), 10) || 0
+        view.container.x = fromX
+        view.container.y = fromY
+        view.container.alpha = 0
+        view.container.scale.set(0.2)
+        const arcHeight = 10 + ((uidNum * 13 + view.layer * 5) % 16)
         this.animations.dealingCards.push({
           view, uid: view.uid,
           targetX: view.targetX, targetY: view.targetY,
-          _fromX: deckX, _fromY: deckY,
+          _fromX: fromX, _fromY: fromY,
           _startTime: Date.now() + view.layer * layerDelay + i * cardDelay,
           _animMs: animMs,
+          _arcHeight: arcHeight,
         })
       }
     } else {
@@ -401,10 +422,33 @@ export class GameScene extends Scene {
     }
   }
 
-  private syncBlocked(cards: Array<{ uid: string; blocked: boolean }>): void {
-    for (const { uid, blocked } of cards) {
+  /** When cards in `layer` arrive, hide cards in layer below that are now covered */
+  private _applyLayerCoverage(layer: number): void {
+    const belowLayer = layer - 1
+    if (belowLayer < 0) return
+    for (const [uid, view] of this.cardViews) {
+      if (view.layer !== belowLayer) continue
+      if (this.logic.board.isCardCovered(view.cardData)) {
+        view.setCovered(true)
+      }
+    }
+  }
+
+  /** After initial dealing animation completes, apply covered state to fish */
+  private _syncCoveredState(): void {
+    const clickable = this.logic.board.getClickableCards()
+    const clickableUids = new Set(clickable.map(c => c.uid))
+    for (const [uid, view] of this.cardViews) {
+      if (!clickableUids.has(uid)) {
+        view.setCovered(true)
+      }
+    }
+  }
+
+  private syncBlocked(cards: Array<{ uid: string; blocked: boolean; covering: boolean }>): void {
+    for (const { uid, blocked, covering } of cards) {
       const view = this.cardViews.get(uid)
-      if (view) view.setCovered(blocked)
+      if (view) view.setCovered(blocked, covering)
     }
   }
 
@@ -479,7 +523,7 @@ export class GameScene extends Scene {
       this.animations.flyEffects.push({
         view: cardView, uid: card.uid,
         startX, startY, targetX, targetY, targetScale,
-        elapsed: 0, duration: 24,
+        elapsed: 0, duration: speedUp(24),
         flipElapsed: 0,
         flipDuration: 0,
         holdDuration: 0,
