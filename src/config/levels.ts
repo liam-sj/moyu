@@ -21,7 +21,7 @@ export const LEVELS: Record<string, LevelConfig> = {
   level2: {
     id: 'level2',
     name: '第二关·深渊',
-    normalCardTypes: 7,
+    normalCardTypes: 12,
     funcCardCount: 9,
     funcTypes: ['shark', 'pearl', 'octopus'],
     funcRatio: { negative: 1, positive: 1, dual: 1 },
@@ -32,8 +32,9 @@ export const LEVELS: Record<string, LevelConfig> = {
     steps: 99,
     slotLimit: 7,
     layerCards: [28, 24, 20, 16, 12, 10, 6, 2, 2],
-    gapRatio: 0.04,
+    gapRatio: 0.06,
     clusterLayers: [2, 3, 4, 5, 6, 7, 8],
+    verticalShift: -0.14,
   },
 }
 

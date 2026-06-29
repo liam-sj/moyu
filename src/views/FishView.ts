@@ -268,11 +268,10 @@ export class FishView {
     if (url) {
       const img = wx.createImage()
       img.onload = () => renderAvatar(img)
-      img.onerror = () => renderAvatar()  // fallback to default
+      img.onerror = () => {}  // no default fallback
       img.src = url
-    } else {
-      renderAvatar()  // no URL, use default immediately
     }
+    // No URL — skip default avatar entirely
   }
 
   destroy(): void { this._destroyed = true; this.container.destroy({ children: true }) }

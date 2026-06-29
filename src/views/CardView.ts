@@ -128,9 +128,9 @@ export class CardView {
     // Brick-wall stagger: odd layers offset by half card width
     const staggerX = (staggerLayers && card.layer % 2 === 1) ? Math.floor(cardWidth / 2) : 0
 
-    // Target position from grid + layer offset
+    // Target position from grid + layer offset (direction randomized per level)
     const baseX = offsetX + card.col * (cardWidth + gap) + card.layer * layerOffsetX + staggerX
-    const baseY = offsetY + card.row * (cardHeight + gap) - card.layer * layerOffsetY
+    const baseY = offsetY + card.row * (cardHeight + gap) + card.layer * layerOffsetY
 
     // Deterministic jitter for organic fish-swarm look
     const uidNum = parseInt(card.uid.slice(1), 10) || 0

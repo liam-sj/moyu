@@ -473,7 +473,7 @@ export class GameScene extends Scene {
       const jy = ((parseInt(card.uid.slice(1), 10) || 0) * 13 + 7) % 7 - 3
       const staggerX = (board.staggerLayers && card.layer % 2 === 1) ? Math.floor(board.cardWidth / 2) : 0
       const hx = board.offsetX + card.col * (board.cardWidth + board.gap) + card.layer * board.layerOffsetX + staggerX + jx
-      const hy = board.offsetY + card.row * (board.cardHeight + board.gap) - card.layer * board.layerOffsetY + jy
+      const hy = board.offsetY + card.row * (board.cardHeight + board.gap) + card.layer * board.layerOffsetY + jy
       this.registerHitArea({
         x: hx, y: hy, w: board.cardWidth, h: board.cardHeight,
       }, () => {
@@ -508,6 +508,15 @@ export class GameScene extends Scene {
 
     const bar = this.logic.slotBar
     this.logic.onCardClicked(card.uid)
+
+    // If the card was immediately eliminated (3-match from addCard), the
+    // CardView was already destroyed by onEliminated — skip animation work.
+    if (!this.cardViews.has(card.uid)) {
+      this.logic.slotBar.notifySlotChanged()
+      this.slotView.renderSlotBar()
+      this.slotView.renderHUD()
+      return
+    }
 
     let slotIdx = -1; let isFlight = false
     for (let i = 0; i < bar.maxSlots; i++) {

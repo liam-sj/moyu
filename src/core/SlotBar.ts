@@ -209,6 +209,9 @@ export class SlotBar {
       name: card.name,
       isRevealed: card.isRevealed,
     }
+    // Sync match check: if this card completes a 3-match, eliminate now
+    // before _checkFailure runs and wrongly declares slot-full game over.
+    this._checkMatch(card.cardId)
     // Slot render is driven by fly animation completion, not here
     return true
   }

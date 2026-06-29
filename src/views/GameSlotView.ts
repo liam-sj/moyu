@@ -183,7 +183,7 @@ export class GameSlotView {
           const cx = x + w / 2; const cy = y + h / 2
           const s = w * 0.52
           // Main puddle with more irregular vertices
-          ink.beginFill(0x080C14, 0.85)
+          ink.beginFill(0x080C14, 0.92)
           const vs = [
             [-0.85, -0.15], [-0.6, -0.3], [-0.45, -0.65], [-0.15, -0.55],
             [0.15, -0.7], [0.4, -0.5], [0.65, -0.35], [0.8, -0.05],
@@ -197,7 +197,7 @@ export class GameSlotView {
           ink.closePath()
           ink.endFill()
           // Inner lighter layer for depth
-          ink.beginFill(0x101820, 0.5)
+          ink.beginFill(0x101820, 0.65)
           const vs2 = [
             [-0.55, -0.05], [-0.35, -0.35], [0.0, -0.4], [0.35, -0.2],
             [0.45, 0.05], [0.25, 0.3], [-0.05, 0.35], [-0.35, 0.15],
@@ -218,7 +218,7 @@ export class GameSlotView {
           ]
           for (const [dx, dy, dr] of splatters) {
             const ds = s * dr
-            ink.beginFill(0x080C14, 0.65)
+            ink.beginFill(0x080C14, 0.78)
             ink.drawEllipse(cx + s * dx - ds, cy + s * dy - ds * 0.6, ds * 2, ds * 1.2)
             ink.endFill()
           }
