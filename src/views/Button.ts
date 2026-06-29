@@ -17,6 +17,8 @@ export interface ButtonOptions {
   shadow?: boolean
   /** Frosted glass style for level UI; default false = solid */
   frosted?: boolean
+  /** Aquatic bubble style — translucent blue with glow */
+  aqua?: boolean
 }
 
 export class Button {
@@ -29,7 +31,7 @@ export class Button {
   private _label: PIXI.Text
   private _x: number; private _y: number; private _w: number; private _h: number
   private _bgColor: string; private _textColor: string; private _fontSize: number
-  private _radius: number; private _shadow: boolean; private _frosted: boolean
+  private _radius: number; private _shadow: boolean; private _frosted: boolean; private _aqua: boolean
 
   constructor(x: number, y: number, w: number, h: number, text: string, options: ButtonOptions = {}) {
     this._x = x; this._y = y; this._w = w; this._h = h
@@ -40,6 +42,7 @@ export class Button {
     this.onClick = options.onClick || null
     this._shadow = options.shadow !== undefined ? options.shadow : true
     this._frosted = options.frosted || false
+    this._aqua = options.aqua || false
 
     this.hitArea = { x, y, w, h }
 
@@ -79,6 +82,21 @@ export class Button {
       hl.clear()
       hl.beginFill(0xFFFFFF, 0.15)
       hl.drawRoundedRect(x + 2, y + 1, w - 4, Math.floor(h * 0.4), r - 2)
+      hl.endFill()
+    } else if (this._aqua) {
+      // ── Aquatic bubble style ──
+      const colorInt = hexToInt(this._bgColor)
+      g.beginFill(colorInt, 0.45)
+      g.drawRoundedRect(x, y, w, h, r)
+      g.endFill()
+      // Glow border
+      g.lineStyle(2, 0xFFFFFF, 0.40)
+      g.drawRoundedRect(x + 1, y + 1, w - 2, h - 2, r)
+      // Inner highlight
+      const hl = this._highlight
+      hl.clear()
+      hl.beginFill(0xFFFFFF, 0.22)
+      hl.drawRoundedRect(x + 3, y + 2, w - 6, Math.floor(h * 0.35), r - 2)
       hl.endFill()
     } else {
       // ── Solid (original style) ──

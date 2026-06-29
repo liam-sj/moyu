@@ -34,5 +34,5 @@ export const FUNC_CARDS: FuncCardConfig[] = [
     effect: 'wild_card', revealIcon: '🦪', revealName: '万能珍珠', weight: 20 },
   // 干扰 — 扰乱效果
   { id: 'octopus',    icon: '🐙', name: '章鱼墨水', type: 'dual',
-    effect: 'swap_board_cards', revealIcon: '🐙', revealName: '章鱼墨水', weight: 20 },
+    effect: 'ink_slots', revealIcon: '🐙', revealName: '章鱼墨水', weight: 20 },
 ]

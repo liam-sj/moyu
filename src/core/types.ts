@@ -61,6 +61,7 @@ export interface SlotCard {
   icon: string
   name: string
   isRevealed: boolean
+  inked?: boolean
 }
 
 // ── 关卡 ──
@@ -83,6 +84,8 @@ export interface LevelConfig {
   gapRatio?: number
   /** Layers (by index) where cards should be placed in tight clusters */
   clusterLayers?: number[]
+  /** Vertical offset ratio (-1 to 1, negative = up). Applied as fraction of available area. */
+  verticalShift?: number
 }
 
 // ── 技能 ──

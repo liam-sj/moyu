@@ -63,11 +63,7 @@ export class StepManager {
     if (!this.stepsUnlimited && this.stepsRemaining <= 0) {
       return { isFailed: true, reason: 'steps', shieldActivated: false }
     }
-    if (!this.slotUnlimited && slotFull && !canEliminate) {
-      if (this.slotOverflowShield) {
-        this.slotOverflowShield = false
-        return { isFailed: false, reason: '', shieldActivated: true }
-      }
+    if (!this.slotUnlimited && slotFull) {
       return { isFailed: true, reason: 'slot_full', shieldActivated: false }
     }
     return { isFailed: false, reason: '', shieldActivated: false }

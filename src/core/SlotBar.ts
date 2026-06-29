@@ -240,6 +240,26 @@ export class SlotBar {
     if (this.bonusSlotCount > 0 && !this.bonusSlot) count++
     return count
   }
+  /** Randomly cover `count` slot cards with ink */
+  inkRandomSlots(count: number): void {
+    const indices: number[] = []
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.slots[i] && !this.slots[i]!.inked) indices.push(i)
+    }
+    this._shuffleArr(indices)
+    for (let i = 0; i < Math.min(count, indices.length); i++) {
+      this.slots[indices[i]]!.inked = true
+    }
+    this.bus.emit('slotChanged', {})
+  }
+
+  private _shuffleArr<T>(arr: T[]): void {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+  }
+
   isFull(): boolean { return this.getVacantCountTotal() === 0 }
 
   private _checkMatch(cardId: string): void {

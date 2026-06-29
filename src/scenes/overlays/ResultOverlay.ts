@@ -51,13 +51,6 @@ export class ResultOverlay extends Scene {
     reason.anchor.set(0.5); reason.x = w / 2; reason.y = h * 0.24
     this.container.addChild(reason)
 
-    const happyText = new PIXI.Text('快乐值: ' + this.result.happiness, {
-      fontFamily: 'sans-serif', fontSize: 28, fontWeight: 'bold',
-      fill: '#F1C40F', align: 'center',
-    } as any)
-    happyText.anchor.set(0.5); happyText.x = w / 2; happyText.y = h * 0.34
-    this.container.addChild(happyText)
-
     const stats = '使用步数: ' + (this.result.stepsUsed || 0)
     const statsText = new PIXI.Text(stats, {
       fontFamily: 'sans-serif', fontSize: 14, fill: '#7F8C8D', align: 'center',

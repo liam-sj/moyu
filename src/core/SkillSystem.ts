@@ -12,6 +12,10 @@ export class SkillSystem {
   charges = 0
   /** Maximum charges that can be accumulated */
   maxCharges = 5
+  /** Progress ratio toward next charge (0-1) */
+  get chargeProgress(): number {
+    return (this.eliminateCount % this.triggerThreshold) / this.triggerThreshold
+  }
   /** Set of skill IDs already used this game */
   usedSkills = new Set<string>()
   isShowingSelection = false
@@ -33,7 +37,7 @@ export class SkillSystem {
 
   init(): void {
     this.eliminateCount = 0
-    this.triggerThreshold = 3
+    this.triggerThreshold = 5
     this.charges = 0
     this.usedSkills.clear()
     this.isShowingSelection = false

@@ -44,7 +44,7 @@ export class GameLogic {
     this._happyMultiplierSteps = 0
 
     const config = this.levelConfig
-    this.board.calcLayout(screenW, screenH, config.gridRows, config.gridCols, config.layers, config.gapRatio || 0)
+    this.board.calcLayout(screenW, screenH, config.gridRows, config.gridCols, config.layers, config.gapRatio || 0, config.verticalShift || 0)
     this.slotBar.calcLayout(screenW, screenH)
     this.board.generate(config)
     this.slotBar.reset(config.slotLimit)
@@ -134,18 +134,16 @@ export class GameLogic {
     const effect = card.config.effect
     switch (effect) {
       case 'boss_patrol': {
+        // Shark eats a random slot card, then disappears
         const slots = this.slotBar.slots
         const nonNull: number[] = []
         for (let i = 0; i < slots.length; i++) { if (slots[i]) nonNull.push(i) }
         if (nonNull.length > 0) {
           const target = nonNull[Math.floor(Math.random() * nonNull.length)]
-          // Use the actual card, not a fake one
-          slots[target] = { uid: card.uid, type: 'event', config: card.config, cardId: card.cardId, icon: card.icon, name: card.name, isRevealed: true }
+          slots[target] = null
           this.bus.emit('slotChanged', {})
-          return true
         }
-        // No cards to replace — let normal addCard handle it
-        return false
+        return true
       }
       case 'slot_limit_down': this.stepManager.slotLimit = Math.max(3, this.stepManager.slotLimit - 1); break
       case 'shuffle_slots': this.slotBar.shuffleSlots(); break
@@ -153,6 +151,7 @@ export class GameLogic {
       case 'add_steps_3': this.stepManager.stepsRemaining += 3; this.stepManager['_emit']?.(); break
       case 'double_happy_10': this._happyMultiplier = 2; this._happyMultiplierSteps = 10; break
       case 'swap_board_cards': this.board.swapTwoCards(); break
+      case 'ink_slots': this.slotBar.inkRandomSlots(2); return true
       case 'wild_card': /* passive — matching handled by SlotBar */ break
       default: break
     }
@@ -334,7 +333,11 @@ export class GameLogic {
       return
     }
     if (result.isFailed) {
-      const reason = result.reason === 'steps' ? '氧气耗尽！' : '被鲨鱼抓住了！'
+      const reasonMap: Record<string, string> = {
+        steps: '氧气耗尽！',
+        slot_full: '鱼槽已满！',
+      }
+      const reason = reasonMap[result.reason] || '鱼槽已满！'
       this._endGame(false, reason)
     }
   }

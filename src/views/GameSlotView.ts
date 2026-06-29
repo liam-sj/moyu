@@ -3,7 +3,6 @@ import type { GameLogic } from '../core/GameLogic'
 import { CardView, createCardImage } from './CardView'
 import { getCardColor } from '../core/Card'
 import { getLevelConfig } from '../config/levels'
-import { getBtnIcon } from './IconButtons'
 
 function hexToInt(hex: string): number {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -23,7 +22,6 @@ export class GameSlotView {
   levelId = 'level1'
 
   // Skill button state
-  skillBtnCharges = -1
   skillBtnContainer: PIXI.Container | null = null
   skillHitArea: { x: number; y: number; w: number; h: number } | null = null
   skillCallback: (() => void) | null = null
@@ -151,13 +149,13 @@ export class GameSlotView {
       }
     }
 
-    // ── Normal slot bar ──
+    // ── Normal slot bar (water ripple style) ──
     const barBg = new PIXI.Graphics()
-    barBg.beginFill(0x1A3040, 0.35)
-    barBg.drawRoundedRect(barX, barY, barW, barH, 10)
+    barBg.beginFill(0x1A3A4A, 0.30)
+    barBg.drawRoundedRect(barX, barY, barW, barH, 12)
     barBg.endFill()
-    barBg.lineStyle(1.5, 0xFFFFFF, 0.15)
-    barBg.drawRoundedRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1, 10)
+    barBg.lineStyle(1, 0x5BA0C0, 0.25)
+    barBg.drawRoundedRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1, 12)
     this.slotLayer.addChild(barBg)
 
     for (let i = 0; i < bar.maxSlots; i++) {
@@ -167,33 +165,77 @@ export class GameSlotView {
       const w = bar.slotWidth; const h = bar.slotHeight
 
       if (slot && !this.flyingUids.has(slot.uid)) {
-        const colorStr = getCardColor(slot)
-        const colorInt = hexToInt(colorStr)
-
         const bg = new PIXI.Graphics()
-        bg.beginFill(0xFFFFFF, 0.22)
-        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.beginFill(0x5BA0C0, 0.15)
+        bg.drawRoundedRect(x, y, w, h, 8)
         bg.endFill()
-        bg.lineStyle(2, 0xF1C40F, 0.5)
-        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.lineStyle(1, 0x8CD0E8, 0.35)
+        bg.drawRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, 8)
         this.slotLayer.addChild(bg)
 
         const slotImg = createCardImage(slot.cardId, slot.icon,
           slot.type === 'event', slot.isRevealed, w, h)
         slotImg.x = x + w / 2; slotImg.y = y + h / 2
         this.slotLayer.addChild(slotImg)
+        // Ink puddle — organic spilled-ink effect
+        if ((slot as any).inked) {
+          const ink = new PIXI.Graphics()
+          const cx = x + w / 2; const cy = y + h / 2
+          const s = w * 0.52
+          // Main puddle with more irregular vertices
+          ink.beginFill(0x080C14, 0.85)
+          const vs = [
+            [-0.85, -0.15], [-0.6, -0.3], [-0.45, -0.65], [-0.15, -0.55],
+            [0.15, -0.7], [0.4, -0.5], [0.65, -0.35], [0.8, -0.05],
+            [0.7, 0.25], [0.5, 0.45], [0.25, 0.65], [-0.05, 0.55],
+            [-0.3, 0.6], [-0.55, 0.4], [-0.7, 0.15],
+          ]
+          ink.moveTo(cx + s * vs[0][0], cy + s * vs[0][1])
+          for (let j = 1; j < vs.length; j++) {
+            ink.lineTo(cx + s * vs[j][0], cy + s * vs[j][1])
+          }
+          ink.closePath()
+          ink.endFill()
+          // Inner lighter layer for depth
+          ink.beginFill(0x101820, 0.5)
+          const vs2 = [
+            [-0.55, -0.05], [-0.35, -0.35], [0.0, -0.4], [0.35, -0.2],
+            [0.45, 0.05], [0.25, 0.3], [-0.05, 0.35], [-0.35, 0.15],
+          ]
+          ink.moveTo(cx + s * vs2[0][0], cy + s * vs2[0][1])
+          for (let j = 1; j < vs2.length; j++) {
+            ink.lineTo(cx + s * vs2[j][0], cy + s * vs2[j][1])
+          }
+          ink.closePath()
+          ink.endFill()
+          // Splatter droplets around edges
+          const splatters = [
+            [0.9, -0.2, 0.07], [0.75, -0.5, 0.05], [0.5, -0.75, 0.04],
+            [-0.1, -0.7, 0.05], [-0.6, -0.55, 0.06], [-0.8, -0.2, 0.04],
+            [-0.7, 0.3, 0.05], [-0.4, 0.65, 0.04], [0.1, 0.7, 0.05],
+            [0.55, 0.55, 0.06], [0.75, 0.35, 0.04], [0.85, 0.05, 0.03],
+            [-0.3, -0.1, 0.03], [0.2, 0.15, 0.04],
+          ]
+          for (const [dx, dy, dr] of splatters) {
+            const ds = s * dr
+            ink.beginFill(0x080C14, 0.65)
+            ink.drawEllipse(cx + s * dx - ds, cy + s * dy - ds * 0.6, ds * 2, ds * 1.2)
+            ink.endFill()
+          }
+          this.slotLayer.addChild(ink)
+        }
       } else {
         const empty = new PIXI.Graphics()
-        empty.beginFill(0xFFFFFF, 0.06)
-        empty.drawRoundedRect(x, y, w, h, 6)
+        empty.beginFill(0x5BA0C0, 0.06)
+        empty.drawRoundedRect(x, y, w, h, 8)
         empty.endFill()
-        empty.lineStyle(1, 0xFFFFFF, 0.12)
-        empty.drawRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, 6)
+        empty.lineStyle(1, 0x5BA0C0, 0.12)
+        empty.drawRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, 8)
         this.slotLayer.addChild(empty)
 
         const numTxt = new PIXI.Text(String(i + 1), {
           fontFamily: 'sans-serif', fontSize: Math.max(9, Math.floor(w * 0.2)),
-          fill: '#3A4B5D', align: 'center',
+          fill: '#4A7080', align: 'center',
         } as any)
         numTxt.anchor.set(0.5); numTxt.x = x + w / 2; numTxt.y = y + h / 2
         this.slotLayer.addChild(numTxt)
@@ -208,11 +250,11 @@ export class GameSlotView {
 
       const bg = new PIXI.Graphics()
       if (bar.bonusSlot) {
-        bg.beginFill(0xFFFFFF, 0.22)
-        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.beginFill(0x5BA0C0, 0.15)
+        bg.drawRoundedRect(x, y, w, h, 8)
         bg.endFill()
-        bg.lineStyle(2, 0x2ECC71, 0.7)
-        bg.drawRoundedRect(x, y, w, h, 6)
+        bg.lineStyle(1, 0x8CD0E8, 0.35)
+        bg.drawRoundedRect(x, y, w, h, 8)
         this.slotLayer.addChild(bg)
 
         const slotImg = createCardImage(bar.bonusSlot.cardId, bar.bonusSlot.icon,
@@ -250,43 +292,34 @@ export class GameSlotView {
     levelTxt.x = 10; levelTxt.y = 14
     this.hudLayer.addChild(levelTxt)
 
-    // Settings button (icon index 3)
-    const sTex = getBtnIcon(3)
-    if (sTex) {
-      const sSprite = new PIXI.Sprite(sTex)
-      const maxSize = 26
-      const ratio = sTex.width / sTex.height
-      if (ratio > 1) { sSprite.width = maxSize; sSprite.height = maxSize / ratio }
-      else { sSprite.height = maxSize; sSprite.width = maxSize * ratio }
-      sSprite.x = 6 + (28 - sSprite.width) / 2
-      sSprite.y = 64 + (28 - sSprite.height) / 2
-      this.hudLayer.addChild(sSprite)
+    // Settings button — bubbles left→right decreasing
+    const sCtn = new PIXI.Container()
+    const sy = 70; const sizes = [6, 4.5, 3]
+    for (let i = 0; i < 3; i++) {
+      const r = sizes[i]
+      const bubble = new PIXI.Graphics()
+      bubble.beginFill(0x7BC8E0, 0.5)
+      bubble.drawCircle(0, 0, r)
+      bubble.endFill()
+      bubble.lineStyle(1, 0xFFFFFF, 0.3)
+      bubble.drawCircle(0, 0, r)
+      bubble.x = 10 + i * 12 + (6 - r); bubble.y = sy
+      sCtn.addChild(bubble)
     }
-    this.settingsHitArea = { x: 4, y: 60, w: 34, h: 34 }
+    this.hudLayer.addChild(sCtn)
+    this.settingsHitArea = { x: 4, y: 60, w: 34, h: 22 }
 
-    // Happiness
-    const happyTxt = new PIXI.Text('😊 ' + this.logic.happyValue, {
-      fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#F1C40F',
-    } as any)
-    happyTxt.anchor.set(1, 0); happyTxt.x = w - 10; happyTxt.y = 14
-    this.hudLayer.addChild(happyTxt)
 
-    // Refresh skill button — evenly spaced, same row as undo/shuffle
-    const slotBarBtm = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const iconSize = 50
-    const totalIconW = iconSize * 3
-    const gap = Math.floor((this.screenW - totalIconW) / 4)
-    const sx = gap + 2 * (iconSize + gap)  // skill is 3rd button
-    this._renderSkillButton(sx, slotBarBtm + 13, iconSize, iconSize)
+
   }
 
   // ── Skill button ──
 
   private _renderSkillButton(x: number, y: number, w: number, h: number): void {
     if (!this.logic) return
-    const charges = this.logic.skillSystem.charges
-    if (charges === this.skillBtnCharges && this.skillBtnContainer) return
-    this.skillBtnCharges = charges
+    const sys = this.logic.skillSystem
+    const charges = sys.charges
+    const ratio = sys.chargeProgress
 
     if (this.skillBtnContainer) {
       this.container.removeChild(this.skillBtnContainer)
@@ -296,19 +329,57 @@ export class GameSlotView {
     const hasCharges = charges > 0
     const ctn = new PIXI.Container()
     ctn.x = x; ctn.y = y
-    const sTex = getBtnIcon(2)
-    if (sTex) {
-      const sprite = new PIXI.Sprite(sTex)
-      sprite.width = w; sprite.height = h
-      if (!hasCharges) sprite.tint = 0x8899AA
-      ctn.addChild(sprite)
+
+    // Background — warm glow when charged, water-blue otherwise
+    const bg = new PIXI.Graphics()
+    bg.beginFill(hasCharges ? 0xF39C12 : 0x4A90B8, hasCharges ? 0.25 : 0.30)
+    bg.drawRoundedRect(0, 0, w, h, 8)
+    bg.endFill()
+    // Glow border
+    bg.lineStyle(1.5, hasCharges ? 0xF39C12 : 0x6BB5D8, 0.50)
+    bg.drawRoundedRect(0.5, 0.5, w - 1, h - 1, 7)
+    ctn.addChild(bg)
+
+    // Border progress — bright and prominent
+    const bWidth = 3
+    const pad = 0
+    const drawSeg = (g: PIXI.Graphics, x1: number, y1: number, x2: number, y2: number, t: number) => {
+      if (t <= 0) return
+      g.lineStyle(bWidth, 0xFFA500, 0.85)
+      const lx = x1 + (x2 - x1) * Math.min(t, 1)
+      const ly = y1 + (y2 - y1) * Math.min(t, 1)
+      g.moveTo(x1, y1)
+      g.lineTo(lx, ly)
     }
+    const g = new PIXI.Graphics()
+    const l = pad; const t = pad; const r = w - pad; const b = h - pad
+    if (ratio > 0.01) {
+      drawSeg(g, l, t, r, t, ratio / 0.25)
+      drawSeg(g, r, t, r, b, (ratio - 0.25) / 0.25)
+      drawSeg(g, r, b, l, b, (ratio - 0.5) / 0.25)
+      drawSeg(g, l, b, l, t, (ratio - 0.75) / 0.25)
+    }
+    ctn.addChild(g)
+
+    // Text
+    const txt = new PIXI.Text('涟漪', {
+      fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold',
+      fill: hasCharges ? '#F39C12' : '#CCCCCC',
+    } as any)
+    txt.anchor.set(0.5); txt.x = w / 2; txt.y = h / 2
+    ctn.addChild(txt)
+
     // Charge badge
     if (charges > 0) {
+      const bb = new PIXI.Graphics()
+      bb.beginFill(0xE74C3C, 0.9)
+      bb.drawCircle(w + 2, 0, 8)
+      bb.endFill()
+      ctn.addChild(bb)
       const badge = new PIXI.Text(String(charges), {
-        fontFamily: 'sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#F39C12',
+        fontFamily: 'sans-serif', fontSize: 11, fontWeight: 'bold', fill: '#FFFFFF',
       } as any)
-      badge.anchor.set(1, 0); badge.x = w - 2; badge.y = 2
+      badge.anchor.set(0.5); badge.x = w + 2; badge.y = -2
       ctn.addChild(badge)
     }
 
@@ -320,6 +391,17 @@ export class GameSlotView {
     }
   }
 
+  /** Lightweight skill button refresh (called every frame) */
+  refreshSkillBtn(): void {
+    if (!this.logic) return
+    const bar = this.logic.slotBar
+    const slotBarBtm = bar.startY + bar.slotHeight
+    const btnW = 60; const btnH = 32
+    const btnGap = Math.floor((this.screenW - btnW * 3) / 4)
+    const sx = btnGap + 2 * (btnW + btnGap)
+    this._renderSkillButton(sx, slotBarBtm + 12, btnW, btnH)
+  }
+
   /** Clear skill button (for level reset) */
   clearSkillButton(): void {
     if (this.skillBtnContainer) {
@@ -327,7 +409,6 @@ export class GameSlotView {
       this.skillBtnContainer.destroy({ children: true })
       this.skillBtnContainer = null
     }
-    this.skillBtnCharges = -1
     this.skillHitArea = null
     this.skillCallback = null
   }

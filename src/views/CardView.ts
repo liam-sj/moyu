@@ -245,22 +245,14 @@ export class CardView {
     const covered = this._isCovered
 
     if (covered) {
-      // ── Back-of-school fish: barely visible, like distant silhouettes ──
+      // ── Deep-water fish: small, dim, receding into the background ──
       const img = createCardImage(card.cardId, card.icon,
-        card.type === 'event', card.isRevealed, w * 0.85, h * 0.85, true)
+        card.type === 'event', card.isRevealed, w * 0.80, h * 0.80, false)
       img.x = w / 2; img.y = h / 2
-      img.alpha = 0.05
+      img.alpha = 0.12
       this.container.addChild(img)
     } else {
       // ── Front-of-school fish: bright, clear, ready to catch ──
-      // Subtle shadow beneath fish
-      const sw = w * 0.35; const sh = h * 0.12
-      const shadow = new PIXI.Graphics()
-      shadow.beginFill(0x000000, 0.25)
-      shadow.drawEllipse(w / 2 - sw / 2, h / 2 + 2 - sh / 2, sw, sh)
-      shadow.endFill()
-      this.container.addChild(shadow)
-
       // Fish sprite at full size
       const img = createCardImage(card.cardId, card.icon,
         card.type === 'event', card.isRevealed, w * 0.92, h * 0.92, false)

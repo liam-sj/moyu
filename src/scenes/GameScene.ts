@@ -15,7 +15,7 @@ import { AudioManager } from '../utils/AudioManager'
 import { GameOverlayView } from './overlays/GameOverlayView'
 import { GameAnimations } from '../views/GameAnimations'
 import { GameSlotView } from '../views/GameSlotView'
-import { createIconButton } from '../views/IconButtons'
+import { Button } from '../views/Button'
 import { speedUp } from '../config/animation'
 
 export class GameScene extends Scene {
@@ -89,10 +89,6 @@ export class GameScene extends Scene {
     this.slotView = new GameSlotView(this.container, this.slotLayer, this.hudLayer)
     this.animations = new GameAnimations(this.container)
     this.animations.onFlyLanded = (uid) => { this.slotView.flyingUids.delete(uid) }
-    this.animations.onLayerDealt = (layer: number) => {
-      // When layer N arrives, hide cards in layer N-1 that are covered by layer N
-      this._applyLayerCoverage(layer)
-    }
     this.overlayView = new GameOverlayView(this as any)
 
     this._loadSettings()
@@ -123,7 +119,7 @@ export class GameScene extends Scene {
         this.container.addChildAt(tint, 1)
       }
     }
-    bgImg.src = 'assets/guanqia5.jpg'
+    bgImg.src = 'assets/guanqia-bg.png'
 
     // Subscribe to events
     this.listen<BoardInitEvent>('boardInit', (e) => this.renderBoard(e.cards))
@@ -153,23 +149,31 @@ export class GameScene extends Scene {
     this._actionHitAreas = []
     this._bottomBtnContainers = []
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const btnY = slotBarBottom + 13
-    const iconSize = 50
-    const totalIconW = iconSize * 3
-    const gap = Math.floor((this.screenW - totalIconW) / 4)  // 4 equal gaps
-    const btnX = (i: number) => gap + i * (iconSize + gap)
+    const btnY = slotBarBottom + 12
+    const btnW = 60; const btnH = 32
+    const btnGap = Math.floor((this.screenW - btnW * 3) / 4)
+    const btnX = (i: number) => btnGap + i * (btnW + btnGap)
 
-    this.container.addChild(createIconButton(0, btnX(0), btnY, iconSize, iconSize))
-    this._actionHitAreas.push({ rect: { x: btnX(0), y: btnY, w: iconSize, h: iconSize }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    // Undo button
+    const undoBtn = new Button(btnX(0), btnY, btnW, btnH, '回游', {
+      bgColor: '#3A80A8', textColor: '#FFFFFF', fontSize: 15, radius: 8, shadow: false, aqua: true,
+    })
+    this.container.addChild(undoBtn.container)
+    this._actionHitAreas.push({ rect: undoBtn.hitArea, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
-    this.container.addChild(createIconButton(1, btnX(1), btnY, iconSize, iconSize))
-    this._actionHitAreas.push({ rect: { x: btnX(1), y: btnY, w: iconSize, h: iconSize }, cb: () => {
+    // Shuffle button
+    const shuffleBtn = new Button(btnX(1), btnY, btnW, btnH, '惊鱼', {
+      bgColor: '#3A80A8', textColor: '#FFFFFF', fontSize: 15, radius: 8, shadow: false, aqua: true,
+    })
+    this.container.addChild(shuffleBtn.container)
+    this._actionHitAreas.push({ rect: shuffleBtn.hitArea, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos
       this.logic.shuffleBoard()
       this.slotView.renderSlotBar()
     } })
+
 
     // Initial render
     this.slotView.renderHUD()
@@ -184,6 +188,7 @@ export class GameScene extends Scene {
 
   onUpdate(dt: number): void {
     this.animations.update(dt, this.cardViews, this.logic.slotBar)
+    try { this.slotView.refreshSkillBtn() } catch (e) { /* keep charge progress in sync */ }
 
     if (this._pendingTransition) {
       const t = this._pendingTransition
@@ -212,15 +217,8 @@ export class GameScene extends Scene {
         ? { x: 0, y: 0, w: this.screenW, h: this.screenH }
         : (this._funcCardRevealHitRect || { x: 0, y: 0, w: this.screenW, h: this.screenH })
       this.registerHitArea(rect, () => {
-        const cb = this._funcCardRevealCallback!
-        if (this._funcCardRevealOverlay) { this.container.removeChild(this._funcCardRevealOverlay); this._funcCardRevealOverlay.destroy() }
-        if (this._funcCardRevealPanel) { this.container.removeChild(this._funcCardRevealPanel); this._funcCardRevealPanel.destroy({ children: true }) }
-        this._funcCardRevealOverlay = null
-        this._funcCardRevealPanel = null
-        this._funcCardRevealHitRect = null
-        this._funcCardRevealCallback = null
-        ;(this as any)._funcCardRevealFullScreen = false
-        cb()
+        const cb = this._funcCardRevealCallback
+        if (cb) cb()
       }, 35)
     }
 
@@ -324,17 +322,22 @@ export class GameScene extends Scene {
     this._debugHitCb = null
 
     const slotBarBottom = this.logic.slotBar.startY + this.logic.slotBar.slotHeight
-    const btnY2 = slotBarBottom + 13
-    const iconSize2 = 50
-    const totalIconW2 = iconSize2 * 3
-    const gap2 = Math.floor((this.screenW - totalIconW2) / 4)
-    const btnX2 = (i: number) => gap2 + i * (iconSize2 + gap2)
+    const btnY2 = slotBarBottom + 12
+    const btnW2 = 60; const btnH2 = 32
+    const btnGap2 = Math.floor((this.screenW - btnW2 * 3) / 4)
+    const btnX2 = (i: number) => btnGap2 + i * (btnW2 + btnGap2)
 
-    this.container.addChild(createIconButton(0, btnX2(0), btnY2, iconSize2, iconSize2))
-    this._actionHitAreas.push({ rect: { x: btnX2(0), y: btnY2, w: iconSize2, h: iconSize2 }, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
+    const undoBtn2 = new Button(btnX2(0), btnY2, btnW2, btnH2, '回游', {
+      bgColor: '#3A80A8', textColor: '#FFFFFF', fontSize: 15, radius: 8, shadow: false, aqua: true,
+    })
+    this.container.addChild(undoBtn2.container)
+    this._actionHitAreas.push({ rect: undoBtn2.hitArea, cb: () => { this.logic.undoLastAction(); this.slotView.renderSlotBar(); this.slotView.renderHUD() } })
 
-    this.container.addChild(createIconButton(1, btnX2(1), btnY2, iconSize2, iconSize2))
-    this._actionHitAreas.push({ rect: { x: btnX2(1), y: btnY2, w: iconSize2, h: iconSize2 }, cb: () => {
+    const shuffleBtn2 = new Button(btnX2(1), btnY2, btnW2, btnH2, '惊鱼', {
+      bgColor: '#3A80A8', textColor: '#FFFFFF', fontSize: 15, radius: 8, shadow: false, aqua: true,
+    })
+    this.container.addChild(shuffleBtn2.container)
+    this._actionHitAreas.push({ rect: shuffleBtn2.hitArea, cb: () => {
       const oldPos: Record<string, { x: number; y: number }> = {}
       for (const [uid, view] of this.cardViews) oldPos[uid] = { x: view.container.x, y: view.container.y }
       this._shuffleOldPositions = oldPos
@@ -370,7 +373,6 @@ export class GameScene extends Scene {
       this.boardLayer.addChild(view.container)
       this.cardViews.set(card.uid, view)
       // On first render: start all fish visible, coverage applied after dealing animation
-      if (this._firstRender && card.isCovered) view.setCovered(false)
       views.push(view)
     }
     this.boardLayer.sortChildren()
@@ -432,6 +434,11 @@ export class GameScene extends Scene {
         view.setCovered(true)
       }
     }
+    // Final layer: do a full sync to catch any remaining covered cards
+    const config = getLevelConfig(this.levelId)
+    if (layer === config.layers - 1) {
+      this._syncCoveredState()
+    }
   }
 
   /** After initial dealing animation completes, apply covered state to fish */
@@ -455,6 +462,8 @@ export class GameScene extends Scene {
   // ── Card hit areas ──
 
   private registerCardHitAreas(): void {
+    // Don't allow clicks during dealing animation (coverage state is not final)
+    if (this.animations.dealingCards.length > 0) return
     const clickable = this.logic.board.getClickableCards()
     const board = this.logic.board
     for (const card of clickable) {
@@ -532,7 +541,11 @@ export class GameScene extends Scene {
         flipFaceRedrawn: false,
       })
     }
-    if (!cardView || slotIdx === -1) this.logic.slotBar.notifySlotChanged()
+    if (!cardView || slotIdx === -1) {
+      // Card consumed by effect (e.g. shark, octopus) — clean up orphan view
+      if (cardView) { this.container.removeChild(cardView.container); cardView.destroy() }
+      this.logic.slotBar.notifySlotChanged()
+    }
     this.slotView.renderHUD()
   }
 

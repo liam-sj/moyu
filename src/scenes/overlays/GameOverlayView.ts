@@ -77,10 +77,19 @@ export class GameOverlayView {
     bg.endFill()
     panel.addChild(bg)
 
-    const title = new PIXI.Text('🐟 一大波鱼群袭来！', {
+    // Fish image from atlas
+    const fishTex = getFishTex('__announcer__')
+    if (fishTex) {
+      const fish = new PIXI.Sprite(fishTex)
+      fish.anchor.set(0.5)
+      fish.width = 40; fish.height = 40
+      fish.x = panelW / 2; fish.y = 26
+      panel.addChild(fish)
+    }
+    const title = new PIXI.Text('一大波鱼群袭来！', {
       fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#5DADE2',
     } as any)
-    title.anchor.set(0.5); title.x = panelW / 2; title.y = 34
+    title.anchor.set(0.5); title.x = panelW / 2; title.y = 56
     panel.addChild(title)
 
     const desc = new PIXI.Text('通关后加入鱼塘，壮大你的鱼群', {
@@ -167,9 +176,10 @@ export class GameOverlayView {
 
     // Effect description
     const descMap: Record<string, string> = {
-      boss_patrol: '随机替换卡槽中的一张牌为鲨鱼',
+      boss_patrol: '随机吞掉卡槽中的一张牌',
       wild_card: '万能牌，可与任意2张牌消除',
       swap_board_cards: '随机调换棋盘上2张牌的位置',
+      ink_slots: '随机用墨汁覆盖卡槽中2张牌',
     }
     const descTxt = new PIXI.Text(descMap[config.effect] || '未知效果', {
       fontFamily: 'sans-serif', fontSize: 13, fill: '#8BA0B0',
@@ -186,10 +196,11 @@ export class GameOverlayView {
     const cleanup = () => {
       if (dismissed) return
       dismissed = true
-      this.host.container.removeChild(overlay)
-      this.host.container.removeChild(panel)
-      overlay.destroy()
-      panel.destroy({ children: true })
+      try { this.host.container.removeChild(overlay) } catch (e) {}
+      try { this.host.container.removeChild(panel) } catch (e) {}
+      try { overlay.destroy() } catch (e) {}
+      panel.removeChildren()
+      try { panel.destroy() } catch (e) {}
       // Clear host state
       hostAny._funcCardRevealOverlay = null
       hostAny._funcCardRevealPanel = null

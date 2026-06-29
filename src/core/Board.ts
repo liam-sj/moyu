@@ -23,7 +23,7 @@ export class Board {
     this.bus = bus
   }
 
-  calcLayout(screenW: number, screenH: number, rows: number, cols: number, layers: number, gapRatio = 0): void {
+  calcLayout(screenW: number, screenH: number, rows: number, cols: number, layers: number, gapRatio = 0, verticalShift = 0): void {
     const areaTop = 20
     const areaBottom = 240
     const areaH = screenH - areaTop - areaBottom
@@ -39,9 +39,9 @@ export class Board {
     this.cardHeight = this.cardWidth
 
     this.layerOffsetX = Math.floor(this.cardWidth * layerOffsetRatio)
-    this.layerOffsetY = Math.floor(this.cardHeight * 0.40)
+    this.layerOffsetY = Math.floor(this.cardHeight * 0.25)
     this.gap = Math.floor(this.cardWidth * gap)
-    this.staggerLayers = true
+    this.staggerLayers = layers <= 1  // single-layer: stagger; multi-layer: align for more overlap
 
     // Center horizontally
     const totalVisualWidth = this.cardWidth * cols + this.gap * (cols - 1) + (layers - 1) * this.layerOffsetX
@@ -54,6 +54,9 @@ export class Board {
     // Multi-layer levels: shift down 30% to leave breathing room above
     const multiLayerShift = layers > 1 ? Math.floor(areaH * 0.30) : 0
     this.offsetY = Math.max(centeredOffsetY, minOffsetY) + multiLayerShift
+    if (verticalShift !== 0) {
+      this.offsetY += Math.floor(areaH * verticalShift)
+    }
   }
 
   generate(config: LevelConfig): void {
@@ -234,11 +237,11 @@ export class Board {
       let placed = 0
 
       if (isCluster) {
-        // Cluster placement: 3 hot-spots, cards tightly packed
+        // Cluster placement: 3 fixed hot-spots
         const clusters = [
-          { rMin: 0, rMax: 1, cMin: 0, cMax: 1 },  // top-left
-          { rMin: 2, rMax: 3, cMin: 2, cMax: 3 },  // center
-          { rMin: 1, rMax: 2, cMin: 4, cMax: 5 },  // right
+          { rMin: 0, rMax: 1, cMin: 0, cMax: 1 },
+          { rMin: 2, rMax: 3, cMin: 2, cMax: 3 },
+          { rMin: 0, rMax: 1, cMin: 4, cMax: 5 },
         ]
         const cardsPerCluster = Math.ceil(needed / clusters.length)
 
@@ -293,31 +296,36 @@ export class Board {
     const upperLayer = card.layer + 1
     if (upperLayer >= this.grid.length) return false
 
-    // Pixel-level overlap with minimum area threshold.
-    // Only mark as "covered" if an upper card obscures >20% of this card's area.
-    // Barely-touching edges don't count — the exposed portion stays highlighted.
-    const MIN_OVERLAP_RATIO = 0.08
-    const cardArea = this.cardWidth * this.cardHeight
-    const minOverlapArea = cardArea * MIN_OVERLAP_RATIO
+    // Use core area (fish body, ~65% of card) for overlap detection.
+    // Transparent corners shouldn't count as "covering" the fish.
+    const CORE = 0.60
+    const MIN_OVERLAP_RATIO = 0.12
+    const padX = this.cardWidth * (1 - CORE) / 2
+    const padY = this.cardHeight * (1 - CORE) / 2
+    const coreW = this.cardWidth * CORE
+    const coreH = this.cardHeight * CORE
+    const coreArea = coreW * coreH
+    const minOverlapArea = coreArea * MIN_OVERLAP_RATIO
 
-    const cx = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX
-    const cy = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY
-    const cRight = cx + this.cardWidth
-    const cBottom = cy + this.cardHeight
+    // Card's core region (centered)
+    const cLeft = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX + padX
+    const cTop = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY + padY
+    const cRight = cLeft + coreW
+    const cBottom = cTop + coreH
 
     for (let r = 0; r < this.grid[upperLayer].length; r++) {
       for (let c = 0; c < this.grid[upperLayer][0].length; c++) {
         const upper = this.grid[upperLayer][r][c]
         if (!upper || upper.isRemoved) continue
 
-        const ux = this.offsetX + c * (this.cardWidth + this.gap) + upperLayer * this.layerOffsetX
-        const uy = this.offsetY + r * (this.cardHeight + this.gap) - upperLayer * this.layerOffsetY
-        const uRight = ux + this.cardWidth
-        const uBottom = uy + this.cardHeight
+        const uLeft = this.offsetX + c * (this.cardWidth + this.gap) + upperLayer * this.layerOffsetX + padX
+        const uTop = this.offsetY + r * (this.cardHeight + this.gap) - upperLayer * this.layerOffsetY + padY
+        const uRight = uLeft + coreW
+        const uBottom = uTop + coreH
 
-        // AABB intersection
-        const overlapX = Math.min(cRight, uRight) - Math.max(cx, ux)
-        const overlapY = Math.min(cBottom, uBottom) - Math.max(cy, uy)
+        // Core-area AABB intersection
+        const overlapX = Math.min(cRight, uRight) - Math.max(cLeft, uLeft)
+        const overlapY = Math.min(cBottom, uBottom) - Math.max(cTop, uTop)
 
         if (overlapX > 0 && overlapY > 0) {
           const overlapArea = overlapX * overlapY
@@ -335,27 +343,32 @@ export class Board {
     const lowerLayer = card.layer - 1
     if (lowerLayer < 0) return false
 
-    const MIN_OVERLAP_RATIO = 0.08
-    const cardArea = this.cardWidth * this.cardHeight
-    const minOverlapArea = cardArea * MIN_OVERLAP_RATIO
+    const CORE = 0.60
+    const MIN_OVERLAP_RATIO = 0.12
+    const padX = this.cardWidth * (1 - CORE) / 2
+    const padY = this.cardHeight * (1 - CORE) / 2
+    const coreW = this.cardWidth * CORE
+    const coreH = this.cardHeight * CORE
+    const coreArea = coreW * coreH
+    const minOverlapArea = coreArea * MIN_OVERLAP_RATIO
 
-    const cx = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX
-    const cy = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY
-    const cRight = cx + this.cardWidth
-    const cBottom = cy + this.cardHeight
+    const cLeft = this.offsetX + card.col * (this.cardWidth + this.gap) + card.layer * this.layerOffsetX + padX
+    const cTop = this.offsetY + card.row * (this.cardHeight + this.gap) - card.layer * this.layerOffsetY + padY
+    const cRight = cLeft + coreW
+    const cBottom = cTop + coreH
 
     for (let r = 0; r < this.grid[lowerLayer].length; r++) {
       for (let c = 0; c < this.grid[lowerLayer][0].length; c++) {
         const lower = this.grid[lowerLayer][r][c]
         if (!lower || lower.isRemoved) continue
 
-        const lx = this.offsetX + c * (this.cardWidth + this.gap) + lowerLayer * this.layerOffsetX
-        const ly = this.offsetY + r * (this.cardHeight + this.gap) - lowerLayer * this.layerOffsetY
-        const lRight = lx + this.cardWidth
-        const lBottom = ly + this.cardHeight
+        const lLeft = this.offsetX + c * (this.cardWidth + this.gap) + lowerLayer * this.layerOffsetX + padX
+        const lTop = this.offsetY + r * (this.cardHeight + this.gap) - lowerLayer * this.layerOffsetY + padY
+        const lRight = lLeft + coreW
+        const lBottom = lTop + coreH
 
-        const overlapX = Math.min(cRight, lRight) - Math.max(cx, lx)
-        const overlapY = Math.min(cBottom, lBottom) - Math.max(cy, ly)
+        const overlapX = Math.min(cRight, lRight) - Math.max(cLeft, lLeft)
+        const overlapY = Math.min(cBottom, lBottom) - Math.max(cTop, lTop)
 
         if (overlapX > 0 && overlapY > 0) {
           if (overlapX * overlapY >= minOverlapArea) return true

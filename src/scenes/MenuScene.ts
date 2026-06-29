@@ -331,14 +331,20 @@ export class MenuScene extends Scene {
       cb: () => { this._showPondDetailOverlay(waterId) }
     })
 
-    // Spawn fish if data available
-    if (data?.ok && data.fatPondRank) {
-      const info = data.fatPondRank.find((d: any) => d.pondId === waterId)
-      const entries = (data.fishEntries && data.fishEntries[waterId]) || []
-      logger.info('MenuScene', `spawnFish targetPondId=${waterId} fishCount=${entries.length}`)
-      pv.spawnFromEntries(entries)
-      if (info) { const rank = info.rank || (data.fatPondRank.indexOf(info) + 1); pv.updateRank?.(rank) }
+    // Spawn fish: cloud data first, fallback to all default fish types
+    let entries: Array<{ url: string; fishId: string }> = []
+    if (data?.ok && data.fishEntries) {
+      entries = data.fishEntries[waterId] || []
     }
+    if (entries.length === 0) {
+      // Show all 12 default fish types so pond never looks empty
+      const allFish = ['xiaojinyu','xianyugan','jinli','hetun','moyu','haima','feiyu','zhangyu','bimuyu','pangxie','jianyu','haitun']
+      for (const fid of allFish) {
+        entries.push({ url: '', fishId: fid })
+      }
+    }
+    logger.info('MenuScene', `spawnFish targetPondId=${waterId} fishCount=${entries.length}`)
+    pv.spawnFromEntries(entries)
   }
 
   private _showRankingOverlay(w: number, h: number): void {

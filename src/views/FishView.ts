@@ -184,7 +184,7 @@ export class FishView {
 
     // Gentle bobbing when paused — avoids frozen/stuck appearance
     if (this.state === 'pause') {
-      const bob = Math.sin(now * 0.004 + this.phase) * 0.15 * dt
+      const bob = Math.sin(now * 0.004 + this.phase) * 0.06 * dt
       this.container.y += bob
     }
 
@@ -219,7 +219,7 @@ export class FishView {
     }
 
     // Body animation
-    const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.2 : 1
+    const animMul = this.state === 'dash' ? 3 : this.state === 'pause' ? 0.06 : 1
     const dir = this.vx > 0 ? -1 : 1
     const wag = Math.sin(now * 0.003 + this.phase) * t.wagStrength * animMul
     this.container.scale.x = dir
@@ -261,7 +261,7 @@ export class FishView {
       self._avatarSprite = new PIXI.Sprite(tex)
       self._avatarSprite.width = avatarSize; self._avatarSprite.height = avatarSize
       self._avatarSprite.anchor.set(0.5)
-      self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.42
+      self._avatarSprite.x = 0; self._avatarSprite.y = -fishSize * 0.65
       self.container.addChild(self._avatarSprite)
     }
 
